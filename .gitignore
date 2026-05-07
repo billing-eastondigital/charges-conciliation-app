@@ -1,0 +1,33 @@
+# ── Client data — never commit ──────────────────────────────
+data/
+*.xlsx
+*.csv
+*.db
+*.sqlite
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+
+# ── Node / Next.js (app/ has its own .gitignore) ────────────
+node_modules/
+.next/
+.vercel
+
+# ── Env & secrets ────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Claude local settings (machine-specific paths) ───────────
+.claude/settings.local.json
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
