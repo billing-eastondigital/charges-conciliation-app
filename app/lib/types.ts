@@ -199,6 +199,63 @@ export interface ClientBudgetRow {
 }
 
 // ------------------------------------------------------------
+// Raw billing rows (AR Excel sheet — one row per account)
+// ------------------------------------------------------------
+/** Mirrors the billing spreadsheet columns exactly.
+ *  One row per Account Name entry in the AR workbook.
+ *  google_shopping_charge = "Amount to charge based on %" for Shopping,
+ *  google_search_charge   = "Amount to charge based on %" for Search/Display,
+ *  bing_charge            = "Amount to charge based on %" for BING.
+ */
+export interface BillingRow {
+  id: number;
+  account_name: string;
+  batch: string;
+  stripe_id: string | null;
+  google_id: string | null;
+  account_status: string;
+  billing_year: number | null;
+  billing_day: number | null;
+  billing_month: string | null;
+  dates_from: string | null;
+  date_to: string | null;
+  plan: string | null;
+  monthly_billing_plan: string | null;
+  billing_formula: string | null;
+  notes: string | null;
+  google_revenue_pct: string | null;
+  coaching_flat_fee: string | null;
+  base_fee_amazon: string | null;
+  base_fee_google: string | null;
+  google_growth_plan: string | null;
+  projected_conversion_value: string | null;
+  google_shopping_revenue: string | null;
+  google_shopping_total: string | null;
+  /** Amount to charge based on % — Google Shopping */
+  google_shopping_charge: string | null;
+  google_search_display: string | null;
+  /** Amount to charge based on % — Google Search/Display */
+  google_search_charge: string | null;
+  bing_revenue: string | null;
+  /** Amount to charge based on % — BING */
+  bing_charge: string | null;
+  others_dfw: string | null;
+  total_to_bill: string;
+  item_1: string | null;
+  item_1_amount: string | null;
+  item_2: string | null;
+  item_2_amount: string | null;
+  item_3: string | null;
+  item_3_amount: string | null;
+  item_4: string | null;
+  item_4_amount: string | null;
+  item_5: string | null;
+  item_5_amount: string | null;
+  memo: string | null;
+  invoice_link: string | null;
+}
+
+// ------------------------------------------------------------
 // Period KPIs (derived — used by KpiStrip)
 // ------------------------------------------------------------
 export interface PeriodKpis {

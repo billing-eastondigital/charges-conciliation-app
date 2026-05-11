@@ -6,8 +6,10 @@ import {
   AlertCircle,
   BarChart3,
   Calendar,
+  CreditCard,
   FileText,
   Settings,
+  Table2,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,6 +45,18 @@ const NAV_ITEMS = [
     href: `/audit/${encodeURIComponent(CURRENT_PERIOD)}`,
     icon: FileText,
     match: "/audit",
+  },
+  {
+    label: "Billing",
+    href: "/billing",
+    icon: Table2,
+    match: "/billing",
+  },
+  {
+    label: "Stripe",
+    href: "/stripe",
+    icon: CreditCard,
+    match: "/stripe",
   },
 ];
 

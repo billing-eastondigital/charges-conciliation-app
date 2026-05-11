@@ -206,7 +206,20 @@ When in doubt about UI copy or report framing, ask "would the owner understand t
 
 ---
 
-## 10. Out of scope (don't accidentally build)
+## 10. Git workflow
+
+Claude handles all git actions autonomously for this project. No confirmation is needed before staging, committing, or pushing to `main`.
+
+**Rules:**
+- After completing any feature, fix, or significant change: `git add -A`, commit with a descriptive message, and push to `main` using the configured SSH key.
+- Push command: `GIT_SSH_COMMAND="ssh -i C:/Users/marco/.ssh/id_billing_eastondigital" git push`
+- Commit message format: `feat: ...` / `fix: ...` / `chore: ...` — short and descriptive.
+- Never amend published commits or force-push.
+- If a push fails (e.g. diverged branch), surface the error to Marco before taking any destructive action.
+
+---
+
+## 11. Out of scope (don't accidentally build)
 
 - Payment processing of any kind. We don't charge cards.
 - Invoice generation. Stripe does that.

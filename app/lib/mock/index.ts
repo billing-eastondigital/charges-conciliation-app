@@ -1,4 +1,6 @@
 export { april2026Results, april2026Kpis, april2026FailedCharges } from "./april-2026";
+export { billingRows2026 } from "./billing-rows";
+export { april2026PaidCharges } from "./stripe-transactions";
 export { april2026Exceptions } from "./exceptions";
 export { monthly2026, kpis2026 } from "./annual-2026";
 export { clientRules2026 } from "./clients";
