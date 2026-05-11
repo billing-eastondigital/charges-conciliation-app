@@ -37,5 +37,51 @@
   "env": {
     "PYTHONPATH": "./engine",
     "RECON_DB": "./reconciliation.db"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Checking TypeScript before push...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const c=JSON.parse(d).tool_input?.command||'';if(!c.match(/git\\s+push/)){process.exit(0);}const {execSync}=require('child_process');const cwd='C:/Users/marco/Documents/recon-app-template/app';try{execSync('npx tsc --noEmit',{cwd,stdio:'inherit'});}catch(e){process.exit(1);}process.exit(0);\""
+          },
+          {
+            "type": "command",
+            "statusMessage": "Checking for data files in git add...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const c=JSON.parse(d).tool_input?.command||'';if(!c.match(/git\\s+add/)){process.exit(0);}if(c.match(/\\.(xlsx|csv|db)\\b/) || c.match(/\\/data\\//)){console.log(JSON.stringify({continue:false,stopReason:'Client data files must never be committed. They are gitignored for a reason.'}));}process.exit(0);\""
+          },
+          {
+            "type": "command",
+            "statusMessage": "Checking for force push...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const c=JSON.parse(d).tool_input?.command||'';if(c.match(/git\\s+push/) && c.match(/(--force|-f\\b)/)){console.log(JSON.stringify({continue:false,stopReason:'Force push is not allowed. Never force-push to main — this would overwrite published commits.'}));}process.exit(0);\""
+          },
+          {
+            "type": "command",
+            "statusMessage": "Scanning for console.log before push...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const c=JSON.parse(d).tool_input?.command||'';if(!c.match(/git\\s+push/)){process.exit(0);}const {execSync}=require('child_process');const base='C:/Users/marco/Documents/recon-app-template/app';try{const out=execSync('grep -rl \\\"console\\\\.log\\\\|debugger\\\" app components lib --include=\\\"*.ts\\\" --include=\\\"*.tsx\\\"',{cwd:base,encoding:'utf8'});if(out.trim()){console.log(JSON.stringify({systemMessage:'WARNING: console.log/debugger found before push in:\\n'+out.trim().split('\\n').slice(0,5).join('\\n')}));}}catch(e){}process.exit(0);\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "statusMessage": "Checking for .toFixed() usage...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const p=JSON.parse(d).tool_input?.file_path||'';if(!p.match(/\\.(ts|tsx)$/) || p.match(/lib\\/format\\.ts$/)){process.exit(0);}const fs=require('fs');if(!fs.existsSync(p))process.exit(0);const src=fs.readFileSync(p,'utf8');const hits=src.split('\\n').map((l,i)=>({l,i})).filter(({l})=>l.includes('.toFixed('));if(hits.length>0){console.log(JSON.stringify({systemMessage:'WARNING: .toFixed() found in '+p.split('/').pop()+' (lines '+hits.map(({i})=>i+1).join(',')+') — use formatMoney() for money values.'}));}process.exit(0);\""
+          },
+          {
+            "type": "command",
+            "statusMessage": "Checking migration for -- DOWN section...",
+            "command": "node -e \"const d=require('fs').readFileSync(0,'utf8');const obj=JSON.parse(d);const p=obj.tool_input?.file_path||'';if(!p.match(/supabase.migrations.*\\.sql$/)){process.exit(0);}const content=obj.tool_input?.content||'';if(!content.includes('-- DOWN')){console.log(JSON.stringify({systemMessage:'WARNING: Migration is missing a -- DOWN rollback section. Add a -- DOWN comment block showing the inverse operations before committing.'}));}process.exit(0);\""
+          }
+        ]
+      }
+    ]
   }
 }
