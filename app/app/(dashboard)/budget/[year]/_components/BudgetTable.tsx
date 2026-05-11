@@ -136,12 +136,16 @@ function SubtotalRow({
           </td>
         );
       })}
-      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono text-[#0170B9] tabular-nums">
+      {/* YTD Projected */}
+      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono text-[#9ca3af] tabular-nums text-xs">
+        {formatMoney(ytdProj)}
+      </td>
+      {/* YTD Actual + delta */}
+      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono text-[#0170B9] tabular-nums bg-[#e8f4ff]">
         {formatMoney(ytdAct)}
         {(() => {
-          const ytdProj2 = rows.reduce((s, r) => s + r.ytd_projected, 0);
           const colorClass = ytdDelta < -0.005 ? "text-red-600" : ytdDelta > 0.005 ? "text-green-700" : "text-[#9ca3af]";
-          const pct = fmtPct(ytdDelta, ytdProj2);
+          const pct = fmtPct(ytdDelta, ytdProj);
           return (
             <>
               <div className={`text-[10px] ${colorClass}`}>
@@ -152,8 +156,19 @@ function SubtotalRow({
           );
         })()}
       </td>
-      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono text-[#3a3a3a] tabular-nums">
-        {formatMoney(fyProj)}
+      {/* Full Year Projected + remaining */}
+      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono tabular-nums">
+        <div className="text-xs text-[#3a3a3a] font-semibold">{formatMoney(fyProj)}</div>
+        {fyProj > 0 && (() => {
+          const remaining = fyProj - ytdAct;
+          const pctDone = Math.min(100, (ytdAct / fyProj) * 100);
+          return (
+            <>
+              <div className="text-[10px] text-[#9ca3af]">{formatMoney(remaining)} left</div>
+              <div className="text-[10px] text-[#9ca3af]">{pctDone.toFixed(0)}% done</div>
+            </>
+          );
+        })()}
       </td>
     </tr>
   );
@@ -197,8 +212,13 @@ function ClientRow({
         return <MonthCell key={key} m={m} hasActual={m.actual !== null} />;
       })}
 
-      {/* YTD Actual */}
-      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums">
+      {/* YTD Projected */}
+      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums text-[#9ca3af]">
+        {formatMoney(row.ytd_projected)}
+      </td>
+
+      {/* YTD Actual + delta vs projected */}
+      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums bg-[#f0f7ff]">
         <div className="text-[#0170B9] font-semibold">{formatMoney(row.ytd_actual)}</div>
         <div className={`text-[10px] ${deltaNeg ? "text-red-600" : deltaPos ? "text-green-700" : "text-[#9ca3af]"}`}>
           {deltaPos ? "+" : ""}{formatMoney(row.ytd_delta)}
@@ -210,9 +230,19 @@ function ClientRow({
         )}
       </td>
 
-      {/* Full Year Projected */}
-      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums text-[#9ca3af]">
-        {formatMoney(row.full_year_projected)}
+      {/* Full Year Projected + remaining to goal */}
+      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums">
+        <div className="text-[#3a3a3a] font-semibold">{formatMoney(row.full_year_projected)}</div>
+        {row.full_year_projected > 0 && (() => {
+          const remaining = row.full_year_projected - row.ytd_actual;
+          const pctDone = Math.min(100, (row.ytd_actual / row.full_year_projected) * 100);
+          return (
+            <>
+              <div className="text-[10px] text-[#9ca3af]">{formatMoney(remaining)} left</div>
+              <div className="text-[10px] text-[#9ca3af]">{pctDone.toFixed(0)}% done</div>
+            </>
+          );
+        })()}
       </td>
     </tr>
   );
@@ -325,11 +355,14 @@ export function BudgetTable({ rows, months, ytdCutoff }: BudgetTableProps) {
                   {short}
                 </th>
               ))}
-              <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#0170B9] uppercase tracking-wide border-l border-[#dddddd] w-24 bg-[#e8f4ff]">
-                YTD Act.
-              </th>
               <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide border-l border-[#dddddd] w-24">
-                FY Proj.
+                YTD Proj.
+              </th>
+              <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#0170B9] uppercase tracking-wide border-l border-[#dddddd] w-24 bg-[#e8f4ff]">
+                YTD Actual
+              </th>
+              <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide border-l border-[#dddddd] w-28">
+                Full Year
               </th>
             </tr>
           </thead>
