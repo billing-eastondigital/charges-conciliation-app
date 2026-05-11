@@ -6,6 +6,8 @@ export { monthly2026, kpis2026 } from "./annual-2026";
 export { clientRules2026 } from "./clients";
 export { clientDatabase, findClient } from "./client-database";
 export { budget2026, budgetKpis2026, BUDGET_MONTHS_2026, BUDGET_YTD_CUTOFF_2026 } from "./budget-2026";
+export { aprilMoMBridge } from "./mom-bridge-2026";
+export type { MoMBridgeData, MoMTopMover } from "./mom-bridge-2026";
 
 export const CURRENT_PERIOD = "April 2026";
 export const CURRENT_YEAR   = 2026;

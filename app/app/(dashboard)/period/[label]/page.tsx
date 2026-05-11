@@ -2,7 +2,8 @@ import { KpiStrip } from "./_components/KpiStrip";
 import { ReconTable } from "./_components/ReconTable";
 import { PeriodSelector } from "./_components/PeriodSelector";
 import { ClientLifecycleSection } from "./_components/ClientLifecycleSection";
-import { april2026Results, april2026Kpis, PERIODS, clientDatabase } from "@/lib/mock";
+import { MoMDeltaSection } from "./_components/MoMDeltaSection";
+import { april2026Results, april2026Kpis, PERIODS, clientDatabase, aprilMoMBridge } from "@/lib/mock";
 
 interface Props {
   params: Promise<{ label: string }>;
@@ -64,6 +65,9 @@ export default async function PeriodPage({ params }: Props) {
         <>
           {/* KPIs */}
           <KpiStrip kpis={kpis!} />
+
+          {/* MoM delta explanation */}
+          <MoMDeltaSection bridge={aprilMoMBridge} />
 
           {/* Client lifecycle */}
           <ClientLifecycleSection newClients={newClients} churnedClients={churnedClients} />
