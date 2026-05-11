@@ -29,13 +29,13 @@ export default async function AnnualPage({ params }: AnnualPageProps) {
     ? `${kpis.total_variance >= 0 ? "+" : ""}${((kpis.total_variance / kpis.total_expected) * 100).toFixed(2)}% of expected`
     : null;
 
-  // Avg ticket per client — latest month vs prior month
-  const lastMonth  = data[data.length - 1];
-  const priorMonth = data[data.length - 2] ?? null;
-  const avgTicketLast  = lastMonth.client_count > 0 ? lastMonth.collected / lastMonth.client_count : 0;
-  const avgTicketPrior = priorMonth && priorMonth.client_count > 0 ? priorMonth.collected / priorMonth.client_count : null;
-  const avgTicketDelta = avgTicketPrior !== null ? avgTicketLast - avgTicketPrior : null;
-  const avgTicketDeltaPct = avgTicketPrior ? ((avgTicketDelta! / avgTicketPrior) * 100) : null;
+  // Avg ticket per client — YTD avg vs last month
+  const lastMonth = data[data.length - 1];
+  const totalClientMonths = data.reduce((s, m) => s + m.client_count, 0);
+  const avgTicketYtd  = totalClientMonths > 0 ? kpis.total_collected / totalClientMonths : 0;
+  const avgTicketLast = lastMonth.client_count > 0 ? lastMonth.collected / lastMonth.client_count : 0;
+  const avgTicketDelta = avgTicketLast - avgTicketYtd;
+  const avgTicketDeltaPct = avgTicketYtd > 0 ? (avgTicketDelta / avgTicketYtd) * 100 : null;
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -93,15 +93,15 @@ export default async function AnnualPage({ params }: AnnualPageProps) {
             Avg Ticket / Client
           </p>
           <p className="text-lg font-semibold font-mono text-[#3a3a3a]">
-            {formatMoney(avgTicketLast)}
+            {formatMoney(avgTicketYtd)}
           </p>
-          <p className="text-xs text-[#6b7280] mt-0.5">{lastMonth.month_short} · {lastMonth.client_count} clients</p>
-          {avgTicketDelta !== null && avgTicketDeltaPct !== null && (
+          <p className="text-xs text-[#6b7280] mt-0.5">YTD · {totalClientMonths} billing events</p>
+          {avgTicketDeltaPct !== null && (
             <div className={`mt-1.5 flex items-center gap-1 text-xs font-medium ${
               avgTicketDelta > 0.005 ? "text-green-700" : avgTicketDelta < -0.005 ? "text-red-700" : "text-[#6b7280]"
             }`}>
               {avgTicketDelta > 0.005 ? <TrendingUp size={12} /> : avgTicketDelta < -0.005 ? <TrendingDown size={12} /> : <Minus size={12} />}
-              {avgTicketDelta >= 0 ? "+" : ""}{formatMoney(avgTicketDelta)} ({avgTicketDeltaPct >= 0 ? "+" : ""}{avgTicketDeltaPct.toFixed(1)}%) vs {priorMonth!.month_short}
+              {lastMonth.month_short} {avgTicketDelta >= 0 ? "+" : ""}{formatMoney(avgTicketDelta)} ({avgTicketDeltaPct >= 0 ? "+" : ""}{avgTicketDeltaPct.toFixed(1)}%) vs YTD
             </div>
           )}
         </div>
