@@ -3,6 +3,8 @@
 > This file is your project memory. Read it at the start of every session.
 > Subdirectory `CLAUDE.md` files refine context for `engine/`, `app/`, and `supabase/`.
 
+**Language**: All UI copy, labels, comments, and code output must be in **English**.
+
 ---
 
 ## 1. What this project is
