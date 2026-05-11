@@ -101,7 +101,7 @@ function SubtotalRow({
 }) {
   const ytdProj  = rows.reduce((s, r) => s + r.ytd_projected, 0);
   const ytdAct   = rows.reduce((s, r) => s + r.ytd_actual, 0);
-  const ytdDelta = rows.reduce((s, r) => s + r.ytd_delta, 0);
+  const ytdDelta = ytdAct - ytdProj; // true delta: actual vs full YTD projection window
   const fyProj   = rows.reduce((s, r) => s + r.full_year_projected, 0);
 
   return (
@@ -181,8 +181,10 @@ function ClientRow({
   row: ClientBudgetRow;
   months: Array<{ key: string; short: string }>;
 }) {
-  const deltaPos = row.ytd_delta > 0.005;
-  const deltaNeg = row.ytd_delta < -0.005;
+  // True YTD delta: actual vs projected over the full YTD window (not just months with actuals)
+  const ytdDelta = row.ytd_actual - row.ytd_projected;
+  const deltaPos = ytdDelta > 0.005;
+  const deltaNeg = ytdDelta < -0.005;
 
   return (
     <tr className="border-b border-[#dddddd] last:border-0 hover:bg-[#eef6ff] transition-colors group">
@@ -221,11 +223,11 @@ function ClientRow({
       <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums bg-[#f0f7ff]">
         <div className="text-[#0170B9] font-semibold">{formatMoney(row.ytd_actual)}</div>
         <div className={`text-[10px] ${deltaNeg ? "text-red-600" : deltaPos ? "text-green-700" : "text-[#9ca3af]"}`}>
-          {deltaPos ? "+" : ""}{formatMoney(row.ytd_delta)}
+          {deltaPos ? "+" : ""}{formatMoney(ytdDelta)}
         </div>
-        {fmtPct(row.ytd_delta, row.ytd_projected) && (
+        {fmtPct(ytdDelta, row.ytd_projected) && (
           <div className={`text-[10px] ${deltaNeg ? "text-red-600" : deltaPos ? "text-green-700" : "text-[#9ca3af]"}`}>
-            {fmtPct(row.ytd_delta, row.ytd_projected)}
+            {fmtPct(ytdDelta, row.ytd_projected)}
           </div>
         )}
       </td>
