@@ -11,6 +11,7 @@ import {
   Settings,
   Table2,
   TrendingUp,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CURRENT_PERIOD } from "@/lib/mock";
@@ -39,6 +40,12 @@ const NAV_ITEMS = [
     href: "/budget/2026",
     icon: TrendingUp,
     match: "/budget",
+  },
+  {
+    label: "Clients",
+    href: "/clients",
+    icon: Users,
+    match: "/clients",
   },
   {
     label: "Audit",
