@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import { april2026Results, april2026Kpis } from "@/lib/mock/april-2026";
 import { april2026Exceptions } from "@/lib/mock/exceptions";
+import { billingRows2026 } from "@/lib/mock/billing-rows";
 import { PERIODS } from "@/lib/mock";
 import { formatMoney } from "@/lib/format";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { MoneyCell, VarianceCell } from "@/components/shared/MoneyCell";
 import { AuditMeta } from "./_components/AuditMeta";
 import { PrintButton } from "./_components/PrintButton";
+import { AuditFilters } from "./_components/AuditFilters";
 
 // ── Mock run metadata (Phase 1) ─────────────────────────────────────────────
 // In Phase 2, this comes from reconciliation_runs table in Supabase.
@@ -38,32 +40,98 @@ const METHODOLOGY = [
   "Source integrity: inputs are SHA-256 hashed at ingest time. Reproducing this report from the same source files must yield identical results.",
 ];
 
+const BATCH_ORDER = ["1", "2", "3", "5", "SUBSCRIPTION", "Consulting", "Multiple"];
+
 // ── Page ────────────────────────────────────────────────────────────────────
 
 interface Props {
-  params: Promise<{ period: string }>;
+  params:       Promise<{ period: string }>;
+  searchParams: Promise<{ q?: string }>;
 }
 
-export default async function AuditPage({ params }: Props) {
-  const { period } = await params;
-  const periodLabel = decodeURIComponent(period);
+export default async function AuditPage({ params, searchParams }: Props) {
+  const { period }    = await params;
+  const { q: rawQ = "" } = await searchParams;
+  const periodLabel   = decodeURIComponent(period);
+  const q             = rawQ.toLowerCase().trim();
 
   // Phase 1: only April 2026 has data
   if (periodLabel !== "April 2026") notFound();
 
-  const periodMeta  = PERIODS.find((p) => p.period_label === periodLabel);
-  const results     = april2026Results;
-  const kpis        = april2026Kpis;
-  const exceptions  = april2026Exceptions.filter((e) => e.status === "OPEN");
+  const periodMeta = PERIODS.find((p) => p.period_label === periodLabel);
+  const kpis       = april2026Kpis;
 
-  const varNum      = parseFloat(kpis.total_variance);
-  const expNum      = parseFloat(kpis.total_expected);
-  const colNum      = parseFloat(kpis.total_collected);
-  const varPct      = expNum > 0 ? ((varNum / expNum) * 100).toFixed(2) : "0.00";
-  const colPct      = expNum > 0 ? ((colNum / expNum) * 100).toFixed(1) : "0.0";
-  const matchPct    = kpis.client_count > 0
+  const varNum  = parseFloat(kpis.total_variance);
+  const expNum  = parseFloat(kpis.total_expected);
+  const colNum  = parseFloat(kpis.total_collected);
+  const varPct  = expNum > 0 ? ((varNum / expNum) * 100).toFixed(2) : "0.00";
+  const colPct  = expNum > 0 ? ((colNum / expNum) * 100).toFixed(1)  : "0.0";
+  const matchPct = kpis.client_count > 0
     ? Math.round((kpis.match_count / kpis.client_count) * 100)
     : 0;
+
+  // ── Filtering ─────────────────────────────────────────────────────────────
+
+  const filteredResults = q
+    ? april2026Results.filter((r) =>
+        r.display_name.toLowerCase().includes(q) ||
+        r.primary_email.toLowerCase().includes(q) ||
+        r.stripe_id.toLowerCase().includes(q)
+      )
+    : april2026Results;
+
+  const filteredBillingRows = q
+    ? billingRows2026.filter((r) =>
+        r.account_name.toLowerCase().includes(q) ||
+        (r.stripe_id ?? "").toLowerCase().includes(q)
+      )
+    : billingRows2026;
+
+  const filteredExceptions = (
+    q
+      ? april2026Exceptions.filter((e) =>
+          e.display_name.toLowerCase().includes(q) ||
+          (e.stripe_id ?? "").toLowerCase().includes(q)
+        )
+      : april2026Exceptions
+  ).filter((e) => e.status === "OPEN");
+
+  // ── Batch breakdown (always full data — independent of client filter) ──────
+
+  type BatchRow = {
+    batch:      string;
+    count:      number;
+    expected:   number;
+    collected:  number;
+    variance:   number;
+    exceptions: number;
+  };
+
+  const batchMap = new Map<string, BatchRow>();
+  for (const r of april2026Results) {
+    if (!batchMap.has(r.batch)) {
+      batchMap.set(r.batch, { batch: r.batch, count: 0, expected: 0, collected: 0, variance: 0, exceptions: 0 });
+    }
+    const b = batchMap.get(r.batch)!;
+    b.count++;
+    b.expected   += parseFloat(r.expected_amount);
+    b.collected  += parseFloat(r.collected_amount);
+    b.variance   += parseFloat(r.variance);
+    if (r.status !== "MATCH") b.exceptions++;
+  }
+  const batchRows = BATCH_ORDER
+    .filter((b) => batchMap.has(b))
+    .map((b)   => batchMap.get(b)!);
+
+  // ── Per-result lookup for AR lines join ───────────────────────────────────
+
+  const resultByStripeId = new Map(april2026Results.map((r) => [r.stripe_id, r]));
+
+  // ── Filtered totals ───────────────────────────────────────────────────────
+
+  const filtExpNum = filteredResults.reduce((s, r) => s + parseFloat(r.expected_amount),  0);
+  const filtColNum = filteredResults.reduce((s, r) => s + parseFloat(r.collected_amount), 0);
+  const filtVarNum = filteredResults.reduce((s, r) => s + parseFloat(r.variance),         0);
 
   return (
     <div className="px-6 py-6 space-y-6 max-w-[1200px] print:px-0 print:py-0 print:space-y-4">
@@ -98,6 +166,13 @@ export default async function AuditPage({ params }: Props) {
         </p>
       </div>
 
+      {/* ── Filters ── */}
+      <AuditFilters
+        periods={PERIODS}
+        currentPeriod={periodLabel}
+        currentQ={rawQ}
+      />
+
       {/* ── Run metadata + source files ── */}
       <AuditMeta
         periodLabel={periodLabel}
@@ -112,12 +187,12 @@ export default async function AuditPage({ params }: Props) {
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: "Expected",        value: formatMoney(expNum),       sub: null,                  color: "#3a3a3a" },
-            { label: "Collected",       value: formatMoney(colNum),       sub: `${colPct}% of expected`, color: "#0170B9" },
-            { label: "Net Variance",    value: `${varNum >= 0 ? "+" : ""}${formatMoney(varNum)}`, sub: `${varNum >= 0 ? "+" : ""}${varPct}% of expected`, color: varNum < -0.01 ? "#b91c1c" : "#15803d" },
-            { label: "Clients",         value: kpis.client_count,         sub: null,                  color: "#3a3a3a" },
-            { label: "Match",           value: `${kpis.match_count}`,     sub: `${matchPct}% of clients`, color: "#15803d" },
-            { label: "Exceptions",      value: `${kpis.exception_count}`, sub: `${kpis.failed_hard_count} failed · ${kpis.missing_count} missing`, color: kpis.exception_count > 0 ? "#b91c1c" : "#15803d" },
+            { label: "Expected",     value: formatMoney(expNum),  sub: null,                        color: "#3a3a3a" },
+            { label: "Collected",    value: formatMoney(colNum),  sub: `${colPct}% of expected`,    color: "#0170B9" },
+            { label: "Net Variance", value: `${varNum >= 0 ? "+" : ""}${formatMoney(varNum)}`, sub: `${varNum >= 0 ? "+" : ""}${varPct}% of expected`, color: varNum < -0.01 ? "#b91c1c" : "#15803d" },
+            { label: "Clients",      value: kpis.client_count,    sub: null,                        color: "#3a3a3a" },
+            { label: "Match",        value: `${kpis.match_count}`, sub: `${matchPct}% of clients`,  color: "#15803d" },
+            { label: "Exceptions",   value: `${kpis.exception_count}`, sub: `${kpis.failed_hard_count} failed · ${kpis.missing_count} missing`, color: kpis.exception_count > 0 ? "#b91c1c" : "#15803d" },
           ].map(({ label, value, sub, color }) => (
             <div
               key={label}
@@ -132,21 +207,21 @@ export default async function AuditPage({ params }: Props) {
         </div>
       </div>
 
-      {/* ── Full reconciliation detail ── */}
+      {/* ── Batch breakdown ── */}
       <div>
         <h2 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide mb-3">
-          Reconciliation Detail — {results.length} rows
+          Breakdown by Batch
         </h2>
         <div className="bg-white border border-[#dddddd] rounded-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#dddddd] bg-[#F5F5F5]">
-                {["Client", "Batch", "Status", "Expected", "Collected", "Variance"].map((h) => (
+                {["Batch", "Clients", "Expected", "Collected", "Variance", "Exceptions"].map((h) => (
                   <th
                     key={h}
                     className={`px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide ${
                       ["Expected", "Collected", "Variance"].includes(h) ? "text-right" : "text-left"
-                    }`}
+                    } ${h === "Exceptions" ? "text-center" : ""}`}
                   >
                     {h}
                   </th>
@@ -154,56 +229,250 @@ export default async function AuditPage({ params }: Props) {
               </tr>
             </thead>
             <tbody>
-              {results.map((r, i) => (
-                <tr
-                  key={r.id}
-                  className={`border-b border-[#dddddd] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}
-                >
-                  <td className="px-4 py-2.5">
-                    <p className="font-medium text-[#3a3a3a] text-sm">{r.display_name}</p>
-                    <p className="text-xs text-[#6b7280]">{r.primary_email}</p>
-                  </td>
-                  <td className="px-4 py-2.5 text-xs text-[#6b7280]">{r.batch}</td>
-                  <td className="px-4 py-2.5"><StatusBadge status={r.status} /></td>
-                  <td className="px-4 py-2.5 text-right"><MoneyCell amount={r.expected_amount} /></td>
-                  <td className="px-4 py-2.5 text-right"><MoneyCell amount={r.collected_amount} /></td>
-                  <td className="px-4 py-2.5 text-right"><VarianceCell variance={r.variance} /></td>
-                </tr>
-              ))}
+              {batchRows.map((b, i) => {
+                const varColor = b.variance < -0.005 ? "text-red-700" : b.variance > 0.005 ? "text-green-700" : "text-[#3a3a3a]";
+                return (
+                  <tr key={b.batch} className={`border-b border-[#dddddd] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}>
+                    <td className="px-4 py-2.5 font-medium text-[#3a3a3a]">Batch {b.batch}</td>
+                    <td className="px-4 py-2.5 text-[#6b7280] tabular-nums">{b.count}</td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums text-[#3a3a3a]">{formatMoney(b.expected)}</td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums text-[#0170B9]">{formatMoney(b.collected)}</td>
+                    <td className={`px-4 py-2.5 text-right font-mono tabular-nums ${varColor}`}>
+                      {b.variance >= 0 ? "+" : ""}{formatMoney(b.variance)}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {b.exceptions > 0
+                        ? <span className="text-xs font-medium text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-sm">{b.exceptions}</span>
+                        : <span className="text-xs text-[#9ca3af]">—</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t-2 border-[#dddddd] bg-[#F5F5F5] font-semibold">
-                <td colSpan={3} className="px-4 py-2.5 text-xs text-[#6b7280] uppercase tracking-wide">
-                  Total ({results.length} clients)
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums">
-                  {formatMoney(expNum)}
-                </td>
-                <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums text-[#0170B9]">
-                  {formatMoney(colNum)}
-                </td>
-                <td className={`px-4 py-2.5 text-right font-mono text-sm tabular-nums ${
-                  varNum < -0.005 ? "text-red-700" : "text-green-700"
-                }`}>
+                <td className="px-4 py-2.5 text-xs text-[#6b7280] uppercase tracking-wide">Total</td>
+                <td className="px-4 py-2.5 tabular-nums text-[#3a3a3a]">{kpis.client_count}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums">{formatMoney(expNum)}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums text-[#0170B9]">{formatMoney(colNum)}</td>
+                <td className={`px-4 py-2.5 text-right font-mono text-sm tabular-nums ${varNum < -0.005 ? "text-red-700" : "text-green-700"}`}>
                   {varNum >= 0 ? "+" : ""}{formatMoney(varNum)}
-                  <div className="text-[10px] font-normal">
-                    {varNum >= 0 ? "+" : ""}{varPct}%
-                  </div>
                 </td>
+                <td className="px-4 py-2.5 text-center text-xs font-medium text-red-700">{kpis.exception_count}</td>
               </tr>
             </tfoot>
           </table>
         </div>
       </div>
 
-      {/* ── Exceptions ── */}
-      {exceptions.length > 0 && (
-        <div>
-          <h2 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide mb-3">
-            Open Exceptions — {exceptions.length}
+      {/* ── Full reconciliation detail ── */}
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide">
+            Reconciliation Detail
           </h2>
+          <span className="text-xs text-[#6b7280]">
+            {q
+              ? `${filteredResults.length} of ${april2026Results.length} clients`
+              : `${filteredResults.length} clients`
+            }
+          </span>
+        </div>
+        {filteredResults.length === 0 ? (
+          <div className="bg-white border border-[#dddddd] rounded-sm px-5 py-8 text-center text-sm text-[#6b7280]">
+            No clients match &ldquo;{rawQ}&rdquo;
+          </div>
+        ) : (
+          <div className="bg-white border border-[#dddddd] rounded-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#dddddd] bg-[#F5F5F5]">
+                  {["Client", "Batch", "Status", "Expected", "Collected", "Variance"].map((h) => (
+                    <th
+                      key={h}
+                      className={`px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide ${
+                        ["Expected", "Collected", "Variance"].includes(h) ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredResults.map((r, i) => (
+                  <tr
+                    key={r.id}
+                    className={`border-b border-[#dddddd] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <p className="font-medium text-[#3a3a3a] text-sm">{r.display_name}</p>
+                      <p className="text-xs text-[#6b7280]">{r.primary_email}</p>
+                      {r.stripe_id && (
+                        <p className="text-[10px] font-mono text-[#9ca3af] mt-0.5">{r.stripe_id}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-[#6b7280]">{r.batch}</td>
+                    <td className="px-4 py-2.5"><StatusBadge status={r.status} /></td>
+                    <td className="px-4 py-2.5 text-right"><MoneyCell amount={r.expected_amount} /></td>
+                    <td className="px-4 py-2.5 text-right"><MoneyCell amount={r.collected_amount} /></td>
+                    <td className="px-4 py-2.5 text-right"><VarianceCell variance={r.variance} /></td>
+                  </tr>
+                ))}
+              </tbody>
+              {filteredResults.length > 1 && (
+                <tfoot>
+                  <tr className="border-t-2 border-[#dddddd] bg-[#F5F5F5] font-semibold">
+                    <td colSpan={3} className="px-4 py-2.5 text-xs text-[#6b7280] uppercase tracking-wide">
+                      {q ? `Subtotal (${filteredResults.length} clients)` : `Total (${filteredResults.length} clients)`}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums">
+                      {formatMoney(filtExpNum)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums text-[#0170B9]">
+                      {formatMoney(filtColNum)}
+                    </td>
+                    <td className={`px-4 py-2.5 text-right font-mono text-sm tabular-nums ${
+                      filtVarNum < -0.005 ? "text-red-700" : "text-green-700"
+                    }`}>
+                      {filtVarNum >= 0 ? "+" : ""}{formatMoney(filtVarNum)}
+                      <div className="text-[10px] font-normal">
+                        {filtVarNum >= 0 ? "+" : ""}{filtExpNum > 0 ? ((filtVarNum / filtExpNum) * 100).toFixed(2) : "0.00"}%
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── AR Lines detail ── */}
+      <div>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide">
+            AR Billing Lines
+          </h2>
+          <span className="text-xs text-[#6b7280]">
+            {q
+              ? `${filteredBillingRows.length} of ${billingRows2026.length} rows`
+              : `${filteredBillingRows.length} rows`
+            }
+          </span>
+        </div>
+        <p className="text-xs text-[#6b7280] mb-3">
+          Individual AR sheet rows before Stripe ID merge. Clients sharing a Stripe ID appear as separate lines here.
+        </p>
+        {filteredBillingRows.length === 0 ? (
+          <div className="bg-white border border-[#dddddd] rounded-sm px-5 py-8 text-center text-sm text-[#6b7280]">
+            No billing rows match &ldquo;{rawQ}&rdquo;
+          </div>
+        ) : (
+          <div className="bg-white border border-[#dddddd] rounded-sm overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#dddddd] bg-[#F5F5F5]">
+                  {[
+                    { label: "Account",    align: "left"  },
+                    { label: "Plan",       align: "left"  },
+                    { label: "Status",     align: "left"  },
+                    { label: "G. Shopping", align: "right" },
+                    { label: "G. Search",  align: "right" },
+                    { label: "Bing",       align: "right" },
+                    { label: "Total to Bill", align: "right" },
+                  ].map(({ label, align }) => (
+                    <th
+                      key={label}
+                      className={`px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide text-${align}`}
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredBillingRows.map((row, i) => {
+                  const result = resultByStripeId.get(row.stripe_id ?? "");
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`border-b border-[#dddddd] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}
+                    >
+                      <td className="px-4 py-2.5">
+                        <p className="font-medium text-[#3a3a3a] text-sm">{row.account_name}</p>
+                        {row.stripe_id && (
+                          <p className="text-[10px] font-mono text-[#9ca3af] mt-0.5">{row.stripe_id}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <p className="text-xs text-[#3a3a3a]">{row.plan}</p>
+                        {row.monthly_billing_plan && (
+                          <p className="text-[11px] text-[#6b7280] mt-0.5">{row.monthly_billing_plan}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {result
+                          ? <StatusBadge status={result.status} />
+                          : <span className="text-[11px] text-[#9ca3af]">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {row.google_shopping_charge
+                          ? <MoneyCell amount={row.google_shopping_charge} />
+                          : <span className="text-xs text-[#9ca3af]">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {row.google_search_charge
+                          ? <MoneyCell amount={row.google_search_charge} />
+                          : <span className="text-xs text-[#9ca3af]">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {row.bing_charge
+                          ? <MoneyCell amount={row.bing_charge} />
+                          : <span className="text-xs text-[#9ca3af]">—</span>
+                        }
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <MoneyCell amount={row.total_to_bill} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {filteredBillingRows.length > 1 && (
+                <tfoot>
+                  <tr className="border-t-2 border-[#dddddd] bg-[#F5F5F5] font-semibold">
+                    <td colSpan={6} className="px-4 py-2.5 text-xs text-[#6b7280] uppercase tracking-wide">
+                      {q ? `Subtotal (${filteredBillingRows.length} rows)` : `Total (${filteredBillingRows.length} rows)`}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono text-sm tabular-nums">
+                      {formatMoney(
+                        filteredBillingRows.reduce((s, r) => s + parseFloat(r.total_to_bill), 0)
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Exceptions ── */}
+      {filteredExceptions.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide">
+              Open Exceptions
+            </h2>
+            <span className="text-xs text-[#6b7280]">{filteredExceptions.length}</span>
+          </div>
           <div className="bg-white border border-[#dddddd] rounded-sm divide-y divide-[#dddddd]">
-            {exceptions.map((e) => (
+            {filteredExceptions.map((e) => (
               <div key={e.id} className="px-5 py-3.5 flex items-start gap-4">
                 <div className="pt-0.5 shrink-0">
                   <StatusBadge status={e.reconciliation_status} />
