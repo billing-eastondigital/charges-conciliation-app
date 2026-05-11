@@ -224,7 +224,16 @@ export function MoMWaterfall({ bridge }: { bridge: MoMBridge }) {
             </Bar>
 
             {/* Visible value bar */}
-            <Bar dataKey="value" stackId="wf" radius={[3, 3, 0, 0]} maxBarSize={60}>
+            <Bar dataKey="value" stackId="wf" radius={[3, 3, 0, 0]} maxBarSize={60}
+              label={{
+                position: "top",
+                formatter: (_: any, entry: any) => {
+                  const d = entry?.value !== undefined ? entry : null;
+                  return "";
+                },
+                fontSize: 10,
+              }}
+            >
               {chartData.map((d, i) => (
                 <Cell key={i} fill={C[d.type]} fillOpacity={d.type === "total" ? 0.9 : 1} />
               ))}
