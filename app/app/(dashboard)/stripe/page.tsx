@@ -83,7 +83,7 @@ export default function StripeTransactionsPage() {
     .reduce((s, c) => s + parseFloat(c.amount_refunded), 0);
 
   return (
-    <div className="px-6 py-6 space-y-5 max-w-[1480px]">
+    <div className="px-6 py-6 space-y-5">
       {/* Header */}
       <div className="flex items-baseline justify-between flex-wrap gap-4">
         <div>
@@ -142,8 +142,8 @@ export default function StripeTransactionsPage() {
       </div>
 
       {/* Table */}
-      <div className="border border-[#dddddd] rounded-[2px] overflow-hidden">
-        <table className="w-full text-xs border-collapse">
+      <div className="border border-[#dddddd] rounded-[2px] overflow-x-auto">
+        <table className="w-max min-w-full text-xs border-collapse">
           <thead>
             <tr className="bg-[#F5F5F5] border-b border-[#dddddd]">
               <th className="px-3 py-2 text-left font-medium text-[#6b7280] whitespace-nowrap">Date</th>
