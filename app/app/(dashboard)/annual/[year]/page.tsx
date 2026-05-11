@@ -2,10 +2,8 @@ import { notFound } from "next/navigation";
 import { monthly2026, kpis2026 } from "@/lib/mock/annual-2026";
 import { AnnualChart } from "./_components/AnnualChart";
 import { MonthlyTable } from "./_components/MonthlyTable";
-import { MoMWaterfall } from "./_components/MoMWaterfall";
 import { formatMoney } from "@/lib/format";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { momBridgeApr2026 } from "@/lib/mock/mom-bridge-2026";
 
 interface AnnualPageProps {
   params: Promise<{ year: string }>;
@@ -111,9 +109,6 @@ export default async function AnnualPage({ params }: AnnualPageProps) {
 
       {/* Chart */}
       <AnnualChart data={data} />
-
-      {/* MoM revenue bridge — most recent transition */}
-      <MoMWaterfall bridge={momBridgeApr2026} />
 
       {/* Monthly table */}
       <MonthlyTable data={data} />
