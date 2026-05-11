@@ -70,18 +70,18 @@ export function MoMDeltaSection({ bridge }: Props) {
     },
     {
       key:    "new",
-      label:  "Clientes ganados",
+      label:  "New clients",
       amount: `+${formatMoney(bridge.new_clients_revenue)}`,
-      sub:    `${bridge.new_client_count} nuevos`,
+      sub:    `${bridge.new_client_count} added`,
       barH:   newH,
       color:  "bg-green-400",
       isBase: false,
     },
     {
       key:    "ticket",
-      label:  "Ticket promedio",
+      label:  "Avg ticket",
       amount: formatMoney(bridge.avg_ticket_delta),
-      sub:    `${bridge.retained_count} retenidos`,
+      sub:    `${bridge.retained_count} retained`,
       barH:   ticketH,
       color:  "bg-red-400",
       isBase: false,
@@ -90,7 +90,7 @@ export function MoMDeltaSection({ bridge }: Props) {
       key:    "end",
       label:  bridge.current_period,
       amount: formatMoney(bridge.current_collected),
-      sub:    `${isDown ? "−" : "+"}${pct}% vs anterior`,
+      sub:    `${isDown ? "−" : "+"}${pct}% vs prior`,
       barH:   aprilH,
       color:  "bg-[#0170B9]",
       isBase: true,
@@ -102,9 +102,9 @@ export function MoMDeltaSection({ bridge }: Props) {
       {/* Title bar */}
       <div className="px-4 py-2.5 border-b border-[#eeeeee] bg-[#fafafa] flex items-center gap-2">
         <span className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide">
-          Cambio mes a mes
+          Month-over-month
         </span>
-        <span className="text-xs text-[#9ca3af]">vs {bridge.prior_period}</span>
+        <span className="text-xs text-[#9ca3af]">vs. {bridge.prior_period}</span>
         <span
           className={cn(
             "ml-auto text-xs font-semibold px-1.5 py-0.5 rounded-sm",
@@ -171,7 +171,7 @@ export function MoMDeltaSection({ bridge }: Props) {
         {/* Top movers */}
         <div className="mt-4 pt-3 border-t border-[#eeeeee]">
           <p className="text-[10px] text-[#9ca3af] uppercase tracking-wide font-semibold mb-2">
-            Principales responsables del cambio en ticket
+            Main drivers of avg ticket shift
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-1">
             {topMovers.map((m) => {
