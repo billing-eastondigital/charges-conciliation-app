@@ -1,7 +1,8 @@
 import { KpiStrip } from "./_components/KpiStrip";
 import { ReconTable } from "./_components/ReconTable";
 import { PeriodSelector } from "./_components/PeriodSelector";
-import { april2026Results, april2026Kpis, PERIODS } from "@/lib/mock";
+import { ClientLifecycleSection } from "./_components/ClientLifecycleSection";
+import { april2026Results, april2026Kpis, PERIODS, clientDatabase } from "@/lib/mock";
 
 interface Props {
   params: Promise<{ label: string }>;
@@ -16,6 +17,16 @@ export default async function PeriodPage({ params }: Props) {
   const results = hasData ? april2026Results : [];
   const kpis = hasData ? april2026Kpis : null;
   const period = PERIODS.find((p) => p.period_label === periodLabel);
+
+  // Client lifecycle — new and churned this period
+  const monthKey = period?.start_date?.slice(0, 7) ?? null; // "2026-04"
+  const newClients = clientDatabase.filter(
+    (c) => c.start_date && period &&
+      c.start_date >= period.start_date && c.start_date <= period.end_date
+  );
+  const churnedClients = clientDatabase.filter(
+    (c) => monthKey && c.deactivated_month === monthKey
+  );
 
   return (
     <div className="px-6 py-6 space-y-5 max-w-[1480px]">
@@ -53,6 +64,9 @@ export default async function PeriodPage({ params }: Props) {
         <>
           {/* KPIs */}
           <KpiStrip kpis={kpis!} />
+
+          {/* Client lifecycle */}
+          <ClientLifecycleSection newClients={newClients} churnedClients={churnedClients} />
 
           {/* Reconciliation table */}
           <div>

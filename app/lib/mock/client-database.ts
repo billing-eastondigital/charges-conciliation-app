@@ -207,13 +207,13 @@ const BATCH_3: ClientRecord[] = [
       "Google & Bing - $399/month + 0.5% of revenue (Shopping only, not Brand)",
       20, null, 4001.26)]),
 
-  // ⚠ Not in client DB — LOST, projection stops May 2026
+  // ⚠ Not in client DB — LOST, churned April 2026 (paid last invoice that month)
   client("cus_KpAN7dkWaFdz3B", "Simply Inspired Goods", "mike@simplyinspiredgoods.com", "3", null,
     ["simplyinspiredgoods.com"],
     [plan(0, "Google Shopping Starter Plan",
       "Google Shopping Management Starter Plan - $320.86/month",
       null, "LOST — account marked inactive", 320.86)],
-    { account_status: "LOST", is_active: false, deactivated_month: "2026-05" }),
+    { account_status: "LOST", is_active: false, deactivated_month: "2026-04" }),
 
   client("cus_LKim7EZYOVj9jF", "Quilted Joy", "angela@quiltedjoy.com", "3", "699-862-2686",
     ["quiltedjoy.com"],
@@ -369,20 +369,24 @@ const CONSULTING: ClientRecord[] = [
     [plan(0, "Social Media Plan", "Social Media Management — variable monthly",
       4, null, 1130.00, { projection_type: "LAST_PERIOD" })]),
 
-  // ⚠ Consulting client paying via Stripe — missing from client DB
+  // ⚠ New client April 2026 — paying via Stripe, not yet in client DB
   client("cus_RyRxOBvhJBvNpE", "ppucheu@pbm-solutions.com", "ppucheu@pbm-solutions.com", "Consulting", null,
     ["ppucheu@pbm-solutions.com"],
     [plan(0, "Advanced Accounts - Custom Pricing",
       "Custom consulting — variable (⚠ missing from client DB, add record)",
-      null, null, 3550.00, { projection_type: "LAST_PERIOD" })]),
+      null, null, 3550.00, { projection_type: "LAST_PERIOD",
+        effective_from: "2026-04-01" })],
+    { start_date: "2026-04-01" }),
 
-  // richie — April $3,500 was onboarding fee; standard retainer $1,500/month
+  // richie — new client April 2026 — $3,500 onboarding fee; standard retainer $1,500/month
   client("cus_UJPVLKVt2c4Oh3", "richie@natcodb.com", "richie@natcodb.com", "Consulting", null,
     ["richie@natcodb.com"],
     [plan(0, "Advanced Accounts - Custom Pricing",
       "Custom retainer — $1,500/month (April 2026 had $3,500 setup fee — one-time)",
       2, "⚠ April: AR $1,500 vs Stripe $3,500 — likely onboarding fee. Verify with Gabriel.",
-      1500.00, { projection_type: "MANUAL", manual_overrides: { "2026-04": 3500 } })]),
+      1500.00, { projection_type: "MANUAL", manual_overrides: { "2026-04": 3500 },
+        effective_from: "2026-04-01" })],
+    { start_date: "2026-04-01" }),
 
   // margaret — no Stripe ID yet
   client(null, "margaret@lblegalnurses.com", "margaret@lblegalnurses.com", "Consulting", null,

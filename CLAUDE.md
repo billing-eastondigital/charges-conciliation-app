@@ -43,6 +43,15 @@ These are the forensic invariants. Breaking them silently corrupts the audit tra
 5. **Period attribution today = `charge.created_at` within `[period.start_date, period.end_date]`.** This is a known approximation. When Stripe API ingest is wired, switch to `invoice.period_start` (see `docs/decisions/0004-period-attribution.md`).
 6. **Source files must be hashed.** Every reconciliation run records SHA-256 of the inputs in `Run_Metadata` (Excel) or `reconciliation_runs` (DB). A report must always be reproducible from inputs.
 7. **`cus_id` is the join key, NOT a unique key for billing.** The same `cus_id` legitimately maps to multiple Account Names (one client paying for multiple domains). See `docs/decisions/0001-cus-id-merge-strategy.md`.
+8. **Client lifecycle classification rules (New / Churned):**
+   - **New client** — meets either condition:
+     a. Appears in Stripe transactions for the first time with no prior reconciliation history (detected via `clients.start_date` within `[period.start_date, period.end_date]`).
+     b. Added to the client DB with expected revenue in this period (`clients.start_date` within the period range).
+     Note: a client can appear in Stripe before they're formally added to the DB (e.g. a one-time setup payment). When this happens they surface as `STRIPE_ONLY` in reconciliation AND as a new client in the lifecycle section. Both are correct and expected.
+   - **Churned client** — meets either condition:
+     a. Explicitly marked `account_status = 'LOST'` in the client DB with `deactivated_month` matching the current period's month key (`YYYY-MM`).
+     b. After a period closes: client had `MISSING_PAYMENT` in the prior period AND has no expected revenue row in the current period (hard churn — determined post-close, not in real-time).
+   - **Never auto-resolve churn** — a LOST client who made a payment in their final month still appears in both the Churned list AND reconciles as MATCH (see simplyinspiredgoods.com, April 2026). The lifecycle signal and the payment outcome are independent.
 
 ---
 
