@@ -44,11 +44,11 @@ export default async function ClientPage({ params }: Props) {
     <div className="px-6 py-6 space-y-6 max-w-[1200px]">
       {/* Back */}
       <Link
-        href="/period/April%202026"
+        href="/clients"
         className="inline-flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#0170B9] transition-colors"
       >
         <ChevronLeft size={14} />
-        April 2026
+        Clients
       </Link>
 
       {/* Header card */}
