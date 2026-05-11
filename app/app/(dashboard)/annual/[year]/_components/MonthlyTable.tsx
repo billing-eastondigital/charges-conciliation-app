@@ -11,6 +11,11 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
   const totalCol = data.reduce((s, m) => s + m.collected, 0);
   const totalVar = data.reduce((s, m) => s + m.variance, 0);
 
+  // Avg ticket per client per row, for MoM delta
+  const avgTickets = data.map((m) =>
+    m.client_count > 0 ? m.collected / m.client_count : 0
+  );
+
   return (
     <div className="bg-white border border-[#dddddd] rounded-sm">
       <div className="px-4 py-3 border-b border-[#dddddd]">
@@ -28,12 +33,17 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Expected</th>
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Collected</th>
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Variance</th>
+            <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">Avg Ticket</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((m) => {
+          {data.map((m, i) => {
             const varNeg = m.variance < -0.005;
             const varPos = m.variance > 0.005;
+            const avg = avgTickets[i];
+            const prevAvg = i > 0 ? avgTickets[i - 1] : null;
+            const delta = prevAvg !== null ? avg - prevAvg : null;
+            const deltaPct = prevAvg ? (delta! / prevAvg) * 100 : null;
             return (
               <tr key={m.period_label} className="border-b border-[#dddddd] last:border-0 hover:bg-[#eef6ff] transition-colors">
                 <td className="px-4 py-3">
@@ -73,6 +83,16 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
                     </div>
                   )}
                 </td>
+                <td className="px-4 py-3 text-right font-mono tabular-nums">
+                  <span className="text-[#3a3a3a]">{formatMoney(avg)}</span>
+                  {delta !== null && deltaPct !== null && (
+                    <div className={`text-[10px] font-sans leading-tight ${
+                      delta > 0.005 ? "text-green-700" : delta < -0.005 ? "text-red-700" : "text-[#6b7280]"
+                    }`}>
+                      {delta >= 0 ? "+" : ""}{deltaPct.toFixed(1)}% MoM
+                    </div>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -97,6 +117,14 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
                   {totalVar >= 0 ? "+" : ""}{((totalVar / totalExp) * 100).toFixed(2)}%
                 </div>
               )}
+            </td>
+            <td className="px-4 py-2.5 text-right font-mono tabular-nums text-[#3a3a3a]">
+              {/* YTD avg ticket = total collected / avg client count across months */}
+              {(() => {
+                const totalClients = data.reduce((s, m) => s + m.client_count, 0);
+                return formatMoney(totalClients > 0 ? totalCol / (totalClients / data.length) : 0);
+              })()}
+              <div className="text-[10px] font-normal font-sans text-[#6b7280] leading-tight">YTD avg</div>
             </td>
           </tr>
         </tfoot>
