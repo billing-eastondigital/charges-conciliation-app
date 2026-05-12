@@ -10,8 +10,6 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { PERIODS } from "@/lib/mock";
-import { monthly2026 } from "@/lib/mock/annual-2026";
 import { cn } from "@/lib/utils";
 import type { ClientRecord, BatchLabel, AccountStatus, Period } from "@/lib/types";
 
@@ -395,13 +393,12 @@ function ClientHistoryCard({ client: c, period, type }: { client: ClientRecord; 
   );
 }
 
-function HistoryTab({ clients }: { clients: ClientRecord[] }) {
-  const periodRows = PERIODS.map((p: Period) => {
+function HistoryTab({ clients, periods, periodClientCounts }: { clients: ClientRecord[]; periods: Period[]; periodClientCounts: Record<string, number> }) {
+  const periodRows = periods.map((p: Period) => {
     const monthKey = p.start_date.slice(0, 7);
     const won     = clients.filter((c) => c.start_date && c.start_date >= p.start_date && c.start_date <= p.end_date);
     const churned = clients.filter((c) => c.deactivated_month === monthKey);
-    const agg     = monthly2026.find((m) => m.period_label === p.period_label);
-    return { period: p, monthKey, won, churned, activeCount: agg?.client_count ?? null };
+    return { period: p, monthKey, won, churned, activeCount: periodClientCounts[p.period_label] ?? null };
   });
 
   const allWon     = periodRows.flatMap((r) => r.won.map((c)     => ({ client: c, period: r.period.period_label })));
@@ -521,7 +518,15 @@ function TabBar({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
 
 // ── Page client shell ─────────────────────────────────────────────
 
-export default function ClientsPageClient({ initialClients }: { initialClients: ClientRecord[] }) {
+export default function ClientsPageClient({
+  initialClients,
+  periods,
+  periodClientCounts,
+}: {
+  initialClients: ClientRecord[];
+  periods: Period[];
+  periodClientCounts: Record<string, number>;
+}) {
   const [tab, setTab] = useState<Tab>("directory");
   return (
     <div className="px-6 py-6 space-y-5 max-w-[1600px]">
@@ -532,7 +537,9 @@ export default function ClientsPageClient({ initialClients }: { initialClients: 
         </p>
       </div>
       <TabBar active={tab} onChange={setTab} />
-      {tab === "directory" ? <DirectoryTab initialClients={initialClients} /> : <HistoryTab clients={initialClients} />}
+      {tab === "directory"
+        ? <DirectoryTab initialClients={initialClients} />
+        : <HistoryTab clients={initialClients} periods={periods} periodClientCounts={periodClientCounts} />}
     </div>
   );
 }
