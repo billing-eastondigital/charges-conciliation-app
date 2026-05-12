@@ -7,54 +7,77 @@ import { Upload, AlertCircle, CheckCircle2, FileSpreadsheet, X } from "lucide-re
 import { cn } from "@/lib/utils";
 
 // ── Column auto-detection ─────────────────────────────────────────────────────
-// Maps xlsx header variants → DB field names
+// Uses positional parsing (header:1) to handle duplicate column names like
+// "Amount to charge based on %" which appears 3× in the AR sheet (Shopping, Search, Bing).
 
-const HEADER_MAP: Record<string, string> = {
+const SIMPLE_HEADER_MAP: Record<string, string> = {
   // account_name
-  "account name": "account_name", "account": "account_name", "cuenta": "account_name",
-  "client": "account_name", "nombre": "account_name",
+  "account name": "account_name", "account": "account_name",
+  "client": "account_name", "nombre": "account_name", "cuenta": "account_name",
   // stripe_id
-  "stripe id": "stripe_id", "stripe": "stripe_id", "customer id": "stripe_id",
-  "stripe customer": "stripe_id", "cus id": "stripe_id",
+  "stripe id": "stripe_id", "stripe": "stripe_id",
+  "customer id": "stripe_id", "stripe customer": "stripe_id",
   // primary_email
-  "email": "primary_email", "correo": "primary_email", "e-mail": "primary_email",
-  "contact email": "primary_email",
+  "email": "primary_email", "correo": "primary_email",
+  "e-mail": "primary_email", "email on stripe": "primary_email",
   // batch
   "batch": "batch", "lote": "batch", "grupo": "batch",
   // billing_plan
-  "billing plan": "billing_plan", "plan": "billing_plan",
-  "monthly billing plan": "billing_plan", "plan mensual": "billing_plan",
-  "monthly plan": "billing_plan",
+  "billing plan": "billing_plan", "monthly billing plan": "billing_plan",
+  "monthly plan": "billing_plan", "plan mensual": "billing_plan",
   // billing_pct
-  "billing %": "billing_pct", "billing pct": "billing_pct",
-  "google revenue %": "billing_pct", "revenue %": "billing_pct",
-  "pct": "billing_pct", "percentage": "billing_pct",
-  // google_shopping_charge
-  "google shopping charge": "google_shopping_charge",
-  "shopping charge": "google_shopping_charge",
-  "g. shopping": "google_shopping_charge",
-  "amount to charge based on % shopping": "google_shopping_charge",
-  // google_search_charge
-  "google search charge": "google_search_charge",
-  "search charge": "google_search_charge",
-  "g. search": "google_search_charge",
-  "amount to charge based on % search": "google_search_charge",
-  // bing_charge
-  "bing charge": "bing_charge", "bing": "bing_charge",
-  "amount to charge based on % bing": "bing_charge",
-  // base_fee
-  "base fee": "base_fee", "base fee google": "base_fee",
-  "base": "base_fee", "fee mensual": "base_fee",
-  // expected_amount / total_to_bill
-  "total to bill": "expected_amount", "total": "expected_amount",
-  "amount": "expected_amount", "total a facturar": "expected_amount",
-  "facturar": "expected_amount", "total facturar": "expected_amount",
-  "to bill": "expected_amount",
+  "google revenue %": "billing_pct", "billing %": "billing_pct",
+  "revenue %": "billing_pct", "billing pct": "billing_pct",
+  // base_fee candidates — all 3 map to __base_fee_N; parser coalesces first non-null
+  "coaching flat fee": "__base_fee_0",
+  "base fee amazon":   "__base_fee_1",
+  "base fee google":   "__base_fee_2",
+  "base fee":          "__base_fee_3",
+  // expected_amount
+  "total to bill": "expected_amount", "total a facturar": "expected_amount",
+  "total facturar": "expected_amount", "to bill": "expected_amount",
 };
 
-function detectField(header: string): string | null {
-  const normalized = header.toLowerCase().trim();
-  return HEADER_MAP[normalized] ?? null;
+// Platform context markers — used to disambiguate repeated "Amount to charge based on %"
+const PLATFORM_MARKERS: Record<string, string> = {
+  "google shopping total": "shopping",
+  "google shopping revenue": "shopping",
+  "google search/display": "search",
+  "google search display": "search",
+  "bing revenue": "bing",
+};
+
+// Build positional field map from header row, handling duplicate column names
+function buildColMap(headers: (string | null)[]): Record<number, string> {
+  const colMap: Record<number, string> = {};
+  let lastPlatform: string | null = null;
+
+  for (let i = 0; i < headers.length; i++) {
+    const raw = String(headers[i] ?? "").toLowerCase().trim();
+    if (!raw) continue;
+
+    // Track platform context for the next "Amount to charge based on %" column
+    if (PLATFORM_MARKERS[raw]) {
+      lastPlatform = PLATFORM_MARKERS[raw];
+      continue;
+    }
+
+    // Disambiguate the repeated charge column
+    if (raw === "amount to charge based on %" || raw.startsWith("amount to charge based on %")) {
+      if (lastPlatform === "shopping") { colMap[i] = "google_shopping_charge"; lastPlatform = null; }
+      else if (lastPlatform === "search") { colMap[i] = "google_search_charge"; lastPlatform = null; }
+      else if (lastPlatform === "bing")   { colMap[i] = "bing_charge";          lastPlatform = null; }
+      continue;
+    }
+
+    const field = SIMPLE_HEADER_MAP[raw];
+    if (field) {
+      const isDupe = !field.startsWith("__base_fee_") && Object.values(colMap).includes(field);
+      if (!isDupe) colMap[i] = field;
+    }
+  }
+
+  return colMap;
 }
 
 interface ParsedRow {
@@ -87,40 +110,49 @@ function parseNum(v: unknown): number | null {
 function parseXlsx(buffer: ArrayBuffer): ParseResult {
   const wb = read(buffer, { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const raw: Record<string, unknown>[] = utils.sheet_to_json(ws, { defval: null });
 
-  if (!raw.length) return { rows: [], detectedFields: [], skipped: 0 };
+  // header:1 → array-of-arrays; preserves duplicate column names by position
+  const raw: unknown[][] = utils.sheet_to_json(ws, { header: 1, defval: null });
 
-  // Detect column mapping from first row's keys
-  const headers = Object.keys(raw[0]);
-  const fieldMap: Record<string, string> = {}; // xlsxHeader → dbField
-  for (const h of headers) {
-    const dbField = detectField(h);
-    if (dbField) fieldMap[h] = dbField;
-  }
-  const detectedFields = [...new Set(Object.values(fieldMap))];
+  if (raw.length < 2) return { rows: [], detectedFields: [], skipped: 0 };
 
-  // Parse rows
+  const headers = raw[0] as (string | null)[];
+  const colMap = buildColMap(headers);
+  const hasBaseFee = Object.values(colMap).some((f) => f.startsWith("__base_fee_"));
+  const detectedFields = [
+    ...new Set(Object.values(colMap).filter((f) => !f.startsWith("__base_fee_"))),
+    ...(hasBaseFee ? ["base_fee"] : []),
+  ];
+
   const rows: ParsedRow[] = [];
   let skipped = 0;
 
-  raw.forEach((rawRow, idx) => {
-    // Build a map of dbField → value
+  for (let rowIdx = 1; rowIdx < raw.length; rowIdx++) {
+    const cells = raw[rowIdx] as unknown[];
+
+    // Build field → value map using positional colMap
     const row: Record<string, unknown> = {};
-    for (const [xlsxHeader, dbField] of Object.entries(fieldMap)) {
-      row[dbField] = rawRow[xlsxHeader];
+    for (const [colStr, field] of Object.entries(colMap)) {
+      row[field] = cells[Number(colStr)];
     }
 
     const accountName = String(row["account_name"] ?? "").trim();
-    if (!accountName) { skipped++; return; }
+    if (!accountName) { skipped++; continue; }
 
-    // Filter out $0 rows that are just placeholders
     const totalRaw = parseNum(row["expected_amount"]);
-    if (totalRaw === null) { skipped++; return; }
+    if (totalRaw === null) { skipped++; continue; }
 
-    // Stripe ID: only keep cus_... values
+    // Only keep valid cus_… Stripe IDs
     const rawStripeId = String(row["stripe_id"] ?? "").trim();
     const stripeId = rawStripeId.startsWith("cus_") ? rawStripeId : null;
+
+    // Coalesce base fee from multiple candidate columns (first non-null wins)
+    const baseFee =
+      parseNum(row["__base_fee_0"]) ??
+      parseNum(row["__base_fee_1"]) ??
+      parseNum(row["__base_fee_2"]) ??
+      parseNum(row["__base_fee_3"]) ??
+      null;
 
     rows.push({
       account_name:           accountName,
@@ -132,11 +164,11 @@ function parseXlsx(buffer: ArrayBuffer): ParseResult {
       google_shopping_charge: parseNum(row["google_shopping_charge"]),
       google_search_charge:   parseNum(row["google_search_charge"]),
       bing_charge:            parseNum(row["bing_charge"]),
-      base_fee:               parseNum(row["base_fee"]),
+      base_fee:               baseFee,
       expected_amount:        totalRaw,
-      source_row_index:       idx + 2, // 1-based, accounting for header row
+      source_row_index:       rowIdx + 1,
     });
-  });
+  }
 
   return { rows, detectedFields, skipped };
 }
