@@ -26,6 +26,8 @@
   --foreground:       #3a3a3a;
   --card:             #ffffff;
   --card-foreground:  #3a3a3a;
+  --popover:          #ffffff;
+  --popover-foreground: #3a3a3a;
   --border:           #dddddd;
   --input:            #dddddd;
   --ring:             #0170B9;
