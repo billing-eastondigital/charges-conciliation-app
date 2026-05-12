@@ -1,13 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { clientDatabase } from "@/lib/mock/client-database";
-import { april2026Results } from "@/lib/mock/april-2026";
-import { april2026Exceptions } from "@/lib/mock/exceptions";
+import { createClient } from "@/lib/supabase/server";
 import { PlanHistoryCard } from "./_components/PlanHistoryCard";
 import { ReconHistoryTable } from "./_components/ReconHistoryTable";
 import { ClientExceptions } from "./_components/ClientExceptions";
-import type { AccountStatus } from "@/lib/types";
+import type { AccountStatus, ReconciliationResult, Exception, ClientRecord } from "@/lib/types";
 
 function AccountStatusBadge({ status }: { status: AccountStatus }) {
   const map: Record<AccountStatus, string> = {
@@ -29,9 +27,89 @@ interface Props {
 export default async function ClientPage({ params }: Props) {
   const { stripe_id } = await params;
 
-  const clientRecord   = clientDatabase.find((c) => c.stripe_id === stripe_id) ?? null;
-  const reconResults   = april2026Results.filter((r) => r.stripe_id === stripe_id);
-  const exceptions     = april2026Exceptions.filter((e) => e.stripe_id === stripe_id);
+  const supabase = await createClient();
+
+  // Fetch client record + billing plans
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("*, client_billing_plans(*)")
+    .eq("stripe_id", stripe_id)
+    .maybeSingle();
+
+  // Fetch all reconciliation results for this stripe_id
+  const { data: resultRows } = await supabase
+    .from("reconciliation_results")
+    .select("*, clients(accounts)")
+    .eq("stripe_id", stripe_id)
+    .order("period_label", { ascending: false });
+
+  // Fetch open exceptions for this stripe_id
+  const { data: exceptionRows } = await supabase
+    .from("exceptions")
+    .select("*")
+    .eq("stripe_id", stripe_id);
+
+  const reconResults: ReconciliationResult[] = (resultRows ?? []).map((r) => ({
+    id: r.id,
+    period_label: r.period_label,
+    stripe_id: r.stripe_id ?? "",
+    display_name: r.display_name ?? "",
+    primary_email: r.primary_email ?? "",
+    expected_amount: parseFloat(r.expected_amount).toFixed(4),
+    collected_amount: parseFloat(r.collected_amount).toFixed(2),
+    variance: parseFloat(r.variance).toFixed(4),
+    status: r.recon_status as ReconciliationResult["status"],
+    batch: (r.batch ?? "—") as ReconciliationResult["batch"],
+    constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
+  }));
+
+  const exceptions: Exception[] = (exceptionRows ?? []).map((r) => ({
+    id: r.id,
+    period_label: r.period_label,
+    stripe_id: r.stripe_id ?? null,
+    display_name: r.display_name ?? "",
+    status: r.resolution_status as Exception["status"],
+    reconciliation_status: r.exception_type as Exception["reconciliation_status"],
+    variance: r.variance != null ? parseFloat(r.variance).toFixed(4) : "0.0000",
+    notes: r.resolution_note ?? null,
+    assigned_to: null,
+    created_at: r.created_at,
+    resolved_at: r.resolved_at ?? null,
+  }));
+
+  const clientRecord: ClientRecord | null = clientRow ? {
+    stripe_id: clientRow.stripe_id ?? null,
+    display_name: clientRow.display_name,
+    primary_email: clientRow.primary_email,
+    account_status: clientRow.account_status as AccountStatus,
+    batch: (clientRow.batch ?? "—") as ClientRecord["batch"],
+    google_id: clientRow.google_id ?? null,
+    accounts: clientRow.accounts ?? [],
+    is_active: clientRow.is_active,
+    deactivated_month: clientRow.deactivated_month ?? null,
+    start_date: clientRow.start_date ?? null,
+    end_date: clientRow.end_date ?? null,
+    billing_plans: (clientRow.client_billing_plans ?? [])
+      .sort((a: { effective_from: string }, b: { effective_from: string }) =>
+        a.effective_from.localeCompare(b.effective_from))
+      .map((p: {
+        billing_plan: string; billing_details: string | null; billing_pct: number;
+        billing_day: number | null; notes: string | null; projection_type: string;
+        projection_amount: number | null; manual_overrides: Record<string, number>;
+        effective_from: string; effective_to: string | null;
+      }) => ({
+        billing_plan: p.billing_plan,
+        billing_details: p.billing_details ?? null,
+        billing_pct: p.billing_pct,
+        billing_day: p.billing_day ?? null,
+        notes: p.notes ?? null,
+        projection_type: p.projection_type as ClientRecord["billing_plans"][number]["projection_type"],
+        projection_amount: p.projection_amount ?? null,
+        manual_overrides: p.manual_overrides ?? {},
+        effective_from: p.effective_from,
+        effective_to: p.effective_to ?? null,
+      })),
+  } : null;
 
   if (!clientRecord && reconResults.length === 0) notFound();
 
