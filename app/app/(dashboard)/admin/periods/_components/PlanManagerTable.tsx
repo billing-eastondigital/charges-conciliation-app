@@ -24,7 +24,8 @@ const PROJECTION_BADGES: Record<ProjectionType, { label: string; className: stri
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
-function getActivePlan(client: ClientRecord): ClientBillingPlan {
+function getActivePlan(client: ClientRecord): ClientBillingPlan | null {
+  if (client.billing_plans.length === 0) return null;
   return (
     client.billing_plans.find((p) => p.effective_to === null) ??
     client.billing_plans[client.billing_plans.length - 1]
@@ -164,9 +165,37 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
                 </tr>
               )}
               {filtered.map((c, i) => {
-                const plan  = getActivePlan(c);
+                const plan = getActivePlan(c);
+                const key  = c.stripe_id ?? c.primary_email;
+
+                if (!plan) {
+                  return (
+                    <tr
+                      key={key}
+                      className={`border-b border-[#dddddd] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]"}`}
+                    >
+                      <td className="px-4 py-3">
+                        {c.stripe_id ? (
+                          <Link href={`/client/${c.stripe_id}`} className="group">
+                            <p className="font-medium text-[#3a3a3a] text-sm group-hover:text-[#0170B9] transition-colors">{c.display_name}</p>
+                            <p className="text-xs text-[#6b7280]">{c.primary_email}</p>
+                          </Link>
+                        ) : (
+                          <>
+                            <p className="font-medium text-[#3a3a3a] text-sm">{c.display_name}</p>
+                            <p className="text-xs text-[#6b7280]">{c.primary_email}</p>
+                          </>
+                        )}
+                      </td>
+                      <td colSpan={4} className="px-4 py-3 text-xs text-[#9ca3af] italic">
+                        No billing plan configured
+                      </td>
+                      <td className="px-4 py-3" />
+                    </tr>
+                  );
+                }
+
                 const badge = PROJECTION_BADGES[plan.projection_type];
-                const key   = c.stripe_id ?? c.primary_email;
 
                 return (
                   <tr
@@ -253,8 +282,8 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
         </div>
       </div>
 
-      {/* Dialogs */}
-      {editingClient && (
+      {/* Dialogs — only open when client has at least one plan */}
+      {editingClient && editingClient.billing_plans.length > 0 && (
         <EditPlanDialog
           client={editingClient}
           saving={saving}
@@ -262,7 +291,7 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
           onClose={() => setEditingClient(null)}
         />
       )}
-      {changingClient && (
+      {changingClient && changingClient.billing_plans.length > 0 && (
         <ChangePlanDialog
           client={changingClient}
           saving={saving}
