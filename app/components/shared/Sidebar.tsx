@@ -11,6 +11,7 @@ import {
   Settings,
   Table2,
   TrendingUp,
+  Upload,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -102,13 +103,25 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Admin link */}
-      <div className="px-3 py-4 border-t border-[#dddddd]">
+      {/* Admin links */}
+      <div className="px-3 py-4 border-t border-[#dddddd] space-y-0.5">
+        <Link
+          href="/admin/import"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-colors",
+            pathname.startsWith("/admin/import")
+              ? "bg-[#0170B9] text-white"
+              : "text-[#6b7280] hover:bg-[#F5F5F5] hover:text-[#3a3a3a]"
+          )}
+        >
+          <Upload size={16} strokeWidth={1.75} />
+          Import
+        </Link>
         <Link
           href="/admin/periods"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-colors",
-            pathname.startsWith("/admin")
+            pathname.startsWith("/admin/periods")
               ? "bg-[#0170B9] text-white"
               : "text-[#6b7280] hover:bg-[#F5F5F5] hover:text-[#3a3a3a]"
           )}
