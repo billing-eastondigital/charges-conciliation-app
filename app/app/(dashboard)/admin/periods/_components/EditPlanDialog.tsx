@@ -8,6 +8,7 @@ import type { ClientBillingPlan, ClientRecord, ProjectionType } from "@/lib/type
 
 interface Props {
   client: ClientRecord;
+  saving?: boolean;
   onSave: (plan: ClientBillingPlan) => void;
   onClose: () => void;
 }
@@ -23,7 +24,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function EditPlanDialog({ client, onSave, onClose }: Props) {
+export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
   const current =
     client.billing_plans.find((p) => p.effective_to === null) ??
     client.billing_plans[client.billing_plans.length - 1];
@@ -130,10 +131,10 @@ export function EditPlanDialog({ client, onSave, onClose }: Props) {
           </Button>
           <Button
             onClick={() => onSave(form)}
-            disabled={!form.billing_plan.trim()}
+            disabled={!form.billing_plan.trim() || saving}
             className="bg-[#0170B9] hover:bg-[#015fa0] text-white rounded-sm"
           >
-            Save changes
+            {saving ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>

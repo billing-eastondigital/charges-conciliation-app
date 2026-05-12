@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { EditPlanDialog } from "./EditPlanDialog";
@@ -34,18 +35,22 @@ function getActivePlan(client: ClientRecord): ClientBillingPlan {
 
 interface Props {
   initialClients: ClientRecord[];
+  updatePlan: (stripeId: string, plan: ClientBillingPlan) => Promise<void>;
+  changePlan: (stripeId: string, effectiveTo: string, newPlan: ClientBillingPlan) => Promise<void>;
 }
 
-export function PlanManagerTable({ initialClients }: Props) {
-  const [clients, setClients]           = useState<ClientRecord[]>(initialClients);
+export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Props) {
+  const router = useRouter();
   const [search, setSearch]             = useState("");
   const [batchFilter, setBatchFilter]   = useState<BatchLabel | "ALL">("ALL");
   const [editingClient, setEditingClient]   = useState<ClientRecord | null>(null);
   const [changingClient, setChangingClient] = useState<ClientRecord | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
 
   // ── filtering ──
   const filtered = useMemo(() => {
-    return clients.filter((c) => {
+    return initialClients.filter((c) => {
       if (batchFilter !== "ALL" && c.batch !== batchFilter) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -58,45 +63,50 @@ export function PlanManagerTable({ initialClients }: Props) {
       }
       return true;
     });
-  }, [clients, search, batchFilter]);
+  }, [initialClients, search, batchFilter]);
 
-  // ── state updaters ──
-  function handleSavePlan(stripeId: string | null, updatedPlan: ClientBillingPlan) {
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.stripe_id !== stripeId) return c;
-        const plans = c.billing_plans.map((p) =>
-          p.effective_to === null ? updatedPlan : p
-        );
-        return { ...c, billing_plans: plans };
-      })
-    );
-    setEditingClient(null);
+  // ── handlers ──
+  async function handleSavePlan(stripeId: string | null, plan: ClientBillingPlan) {
+    if (!stripeId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await updatePlan(stripeId, plan);
+      setEditingClient(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save plan.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleChangePlan(
+  async function handleChangePlan(
     stripeId: string | null,
     effectiveTo: string,
     newPlan: ClientBillingPlan
   ) {
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.stripe_id !== stripeId) return c;
-        const plans = c.billing_plans.map((p) =>
-          p.effective_to === null ? { ...p, effective_to: effectiveTo } : p
-        );
-        return { ...c, billing_plans: [...plans, newPlan] };
-      })
-    );
-    setChangingClient(null);
+    if (!stripeId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await changePlan(stripeId, effectiveTo, newPlan);
+      setChangingClient(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to change plan.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <>
-      {/* In-memory notice */}
-      <div className="bg-amber-50 border border-amber-200 rounded-sm px-4 py-2.5 text-xs text-amber-800">
-        Changes are <strong>in-memory only</strong> and will reset on page reload. Persistence via Supabase comes in Phase 2.
-      </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-sm px-4 py-2.5 text-xs text-red-800">
+          {error}
+        </div>
+      )}
 
       <div className="bg-white border border-[#dddddd] rounded-sm">
         {/* Toolbar */}
@@ -110,7 +120,7 @@ export function PlanManagerTable({ initialClients }: Props) {
               className="flex-1 max-w-xs text-sm border border-[#dddddd] rounded-sm px-3 py-1.5 outline-none focus:border-[#0170B9] transition-colors"
             />
             <span className="text-xs text-[#6b7280] ml-auto whitespace-nowrap">
-              {filtered.length} of {clients.length} clients
+              {filtered.length} of {initialClients.length} clients
             </span>
           </div>
 
@@ -221,13 +231,15 @@ export function PlanManagerTable({ initialClients }: Props) {
                       <div className="flex gap-2 justify-end whitespace-nowrap">
                         <button
                           onClick={() => setEditingClient(c)}
-                          className="text-xs px-3 py-1.5 border border-[#dddddd] rounded-sm text-[#4B4F58] hover:border-[#0170B9] hover:text-[#0170B9] transition-colors"
+                          disabled={saving}
+                          className="text-xs px-3 py-1.5 border border-[#dddddd] rounded-sm text-[#4B4F58] hover:border-[#0170B9] hover:text-[#0170B9] transition-colors disabled:opacity-40"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => setChangingClient(c)}
-                          className="text-xs px-3 py-1.5 border border-[#dddddd] rounded-sm text-[#4B4F58] hover:border-[#3a3a3a] hover:text-[#3a3a3a] transition-colors"
+                          disabled={saving}
+                          className="text-xs px-3 py-1.5 border border-[#dddddd] rounded-sm text-[#4B4F58] hover:border-[#3a3a3a] hover:text-[#3a3a3a] transition-colors disabled:opacity-40"
                         >
                           Change plan
                         </button>
@@ -245,6 +257,7 @@ export function PlanManagerTable({ initialClients }: Props) {
       {editingClient && (
         <EditPlanDialog
           client={editingClient}
+          saving={saving}
           onSave={(plan) => handleSavePlan(editingClient.stripe_id, plan)}
           onClose={() => setEditingClient(null)}
         />
@@ -252,6 +265,7 @@ export function PlanManagerTable({ initialClients }: Props) {
       {changingClient && (
         <ChangePlanDialog
           client={changingClient}
+          saving={saving}
           onConfirm={(effectiveTo, newPlan) =>
             handleChangePlan(changingClient.stripe_id, effectiveTo, newPlan)
           }
