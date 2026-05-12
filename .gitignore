@@ -28,6 +28,9 @@ node_modules/
 # ── Claude local settings (machine-specific paths) ───────────
 .claude/settings.local.json
 
+# ── MCP config (contains Supabase project ref — keep local) ──
+.mcp.json
+
 # ── OS ───────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
