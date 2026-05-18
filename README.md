@@ -93,6 +93,19 @@ Say these to Claude and the right skill fires automatically:
 - `docs/runbooks/` — operational playbooks (monthly close, etc.)
 - `docs/data-april-2026.md` — canonical April 2026 data analysis
 
+## Stripe accounts
+
+The agency operates **two Stripe accounts**:
+
+| Account | Identifier | Clients |
+|---|---|---|
+| Main account | Charge IDs contain `Bz2r3aRl9` | Most clients (batches 1–5, Consulting, Multiple) |
+| Launch account | Charge IDs contain `JNvCoIloog` | Subscription clients billed via the Launch account (beehivehandmade, sugarbeeclothing, jewelrybybretta, threearrowsnutra, gr8beads, camoeverafter) |
+
+When exporting from Stripe for ingestion, **both accounts must be exported separately** and loaded together. The Launch account export is typically a single file covering multiple months (e.g. `LAUNCH-jan-april-26.csv`). Period attribution for the Launch file uses the UTC month from `Created date (UTC)`.
+
+> When the Stripe API auto-pull Edge Function is built (Phase 4), it must pull from both account API keys and merge the results before writing to `stripe_charges`.
+
 ## Key business rules
 
 1. Reconciliation grain = `(period, cus_id)` — never per-charge
