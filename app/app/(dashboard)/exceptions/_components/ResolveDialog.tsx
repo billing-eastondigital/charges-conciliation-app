@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ interface ResolveDialogProps {
 export function ResolveDialog({ exception, mode, onClose }: ResolveDialogProps) {
   const [note, setNote] = useState("");
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   const isOpen = exception !== null && mode !== null;
 
@@ -30,6 +32,7 @@ export function ResolveDialog({ exception, mode, onClose }: ResolveDialogProps) 
       await resolveException(exception.id, mode, note);
       setNote("");
       onClose();
+      router.refresh();
     });
   }
 
