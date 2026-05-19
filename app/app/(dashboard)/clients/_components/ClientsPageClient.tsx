@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   TrendingUp, TrendingDown, ArrowRight, Search, Plus, ExternalLink, Pencil,
@@ -12,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ClientRecord, BatchLabel, AccountStatus, Period } from "@/lib/types";
+import { updateClientLifecycle } from "../actions";
 
 // ── Types ────────────────────────────────────────────────────────
 type Tab = "directory" | "history";
@@ -54,28 +56,37 @@ function EditLifecycleDialog({
     start_date: client.start_date ?? "",
     end_date:   client.end_date   ?? "",
   });
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
-  const willBeLost   = form.end_date.trim() !== "";
-  const wasLost      = client.end_date !== null;
+  const willBeLost     = form.end_date.trim() !== "";
+  const wasLost        = client.end_date !== null;
   const willReactivate = wasLost && !willBeLost;
 
   function handleSave() {
     const hasEnd = form.end_date.trim() !== "";
     const updates: Partial<ClientRecord> = {
-      start_date: form.start_date.trim() || null,
-      end_date:   hasEnd ? form.end_date.trim() : null,
+      start_date:        form.start_date.trim() || null,
+      end_date:          hasEnd ? form.end_date.trim() : null,
+      account_status:    hasEnd ? "LOST" : "ACTIVE",
+      is_active:         !hasEnd,
+      deactivated_month: hasEnd ? form.end_date.trim().slice(0, 7) : null,
     };
-    if (hasEnd) {
-      updates.account_status  = "LOST";
-      updates.is_active       = false;
-      updates.deactivated_month = form.end_date.trim().slice(0, 7); // "YYYY-MM"
-    } else {
-      updates.account_status  = "ACTIVE";
-      updates.is_active       = true;
-      updates.deactivated_month = null;
-    }
-    onSave(updates);
-    onClose();
+
+    startTransition(async () => {
+      if (client.stripe_id) {
+        await updateClientLifecycle(client.stripe_id, {
+          start_date:        updates.start_date ?? null,
+          end_date:          updates.end_date ?? null,
+          account_status:    updates.account_status as "ACTIVE" | "LOST" | "INACTIVE",
+          is_active:         updates.is_active!,
+          deactivated_month: updates.deactivated_month ?? null,
+        });
+      }
+      onSave(updates);
+      router.refresh();
+      onClose();
+    });
   }
 
   return (
@@ -130,10 +141,10 @@ function EditLifecycleDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button size="sm" onClick={handleSave}
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button size="sm" onClick={handleSave} disabled={isPending}
             className="bg-[#0170B9] hover:bg-[#015fa3] text-white rounded-sm">
-            Save changes
+            {isPending ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
