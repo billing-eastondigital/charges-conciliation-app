@@ -42,7 +42,7 @@ These are the forensic invariants. Breaking them silently corrupts the audit tra
 2. **Aggregation runs only on `PAID_NET` charges, never on raw `Status=Paid`.** A Failed retry against an already-Paid invoice is informational, not collectable. Double-counting it is a forensic violation.
 3. **`Refunded` and `Failed` rows are never filtered out.** They must surface as exceptions even when the customer has no AR row that period.
 4. **Match tolerance = ±$0.01.** Anything outside is `UNDERPAID` or `OVERPAID`. Don't widen the tolerance to "fix" a discrepancy — find the cause.
-5. **Period attribution today = `charge.created_at` within `[period.start_date, period.end_date]`.** This is a known approximation. When Stripe API ingest is wired, switch to `invoice.period_start` (see `docs/decisions/0004-period-attribution.md`).
+5. **Period attribution = `charge.created_at` within `[period.start_date, period.end_date]`.** Stripe API ingest is live (`ingest-stripe` Edge Function). Main account uses EST timezone offset (+5h UTC window). Switch to `invoice.period_start` is a future improvement (see `docs/decisions/0004-period-attribution.md`).
 6. **Source files must be hashed.** Every reconciliation run records SHA-256 of the inputs in `Run_Metadata` (Excel) or `reconciliation_runs` (DB). A report must always be reproducible from inputs.
 7. **`cus_id` is the join key, NOT a unique key for billing.** The same `cus_id` legitimately maps to multiple Account Names (one client paying for multiple domains). See `docs/decisions/0001-cus-id-merge-strategy.md`.
 8. **Client lifecycle classification rules (New / Churned):**
