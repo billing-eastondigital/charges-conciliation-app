@@ -6,8 +6,8 @@ import StripeTransactionsClient, {
 export default async function StripeTransactionsPage() {
   const supabase = await createClient();
 
-  // Fetch charges + clients in parallel
-  const [{ data: charges }, { data: clients }] = await Promise.all([
+  // Fetch charges, clients, and periods in parallel
+  const [{ data: charges }, { data: clients }, { data: periodsRows }] = await Promise.all([
     supabase
       .from("stripe_charges")
       .select(
@@ -15,6 +15,7 @@ export default async function StripeTransactionsPage() {
       )
       .order("created_at_stripe", { ascending: false }),
     supabase.from("clients").select("stripe_id, display_name, batch"),
+    supabase.from("periods").select("period_label").order("start_date", { ascending: false }),
   ]);
 
   // Build lookup map
@@ -39,11 +40,10 @@ export default async function StripeTransactionsPage() {
     };
   });
 
-  // Ordered list of periods (most recent first) for the filter dropdown
-  const periodOrder = ["April 2026", "March 2026", "February 2026", "January 2026"];
-  const periods = periodOrder.filter((p) =>
-    enriched.some((c) => c.period_label === p)
-  );
+  // Periods ordered most recent first — derived from DB, filtered to those with charges
+  const periods = (periodsRows ?? [])
+    .map((p) => p.period_label)
+    .filter((p) => enriched.some((c) => c.period_label === p));
 
   return <StripeTransactionsClient charges={enriched} periods={periods} />;
 }

@@ -1,6 +1,17 @@
 import { redirect } from "next/navigation";
-import { CURRENT_PERIOD } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Home() {
-  redirect(`/period/${encodeURIComponent(CURRENT_PERIOD)}`);
+export default async function Home() {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("periods")
+    .select("period_label")
+    .eq("is_closed", false)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .single();
+
+  const current = data?.period_label ?? "April 2026";
+  redirect(`/period/${encodeURIComponent(current)}`);
 }

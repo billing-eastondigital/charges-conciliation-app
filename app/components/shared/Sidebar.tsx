@@ -15,61 +15,64 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CURRENT_PERIOD } from "@/lib/mock";
 
-const NAV_ITEMS = [
-  {
-    label: "Period",
-    href: `/period/April 2026`,
-    icon: Calendar,
-    match: "/period",
-  },
-  {
-    label: "Exceptions",
-    href: "/exceptions",
-    icon: AlertCircle,
-    match: "/exceptions",
-  },
-  {
-    label: "Annual",
-    href: "/annual/2026",
-    icon: BarChart3,
-    match: "/annual",
-  },
-  {
-    label: "Budget",
-    href: "/budget/2026",
-    icon: TrendingUp,
-    match: "/budget",
-  },
-  {
-    label: "Clients",
-    href: "/clients",
-    icon: Users,
-    match: "/clients",
-  },
-  {
-    label: "Audit",
-    href: `/audit/${encodeURIComponent(CURRENT_PERIOD)}`,
-    icon: FileText,
-    match: "/audit",
-  },
-  {
-    label: "Billing",
-    href: "/billing",
-    icon: Table2,
-    match: "/billing",
-  },
-  {
-    label: "Stripe",
-    href: "/stripe",
-    icon: CreditCard,
-    match: "/stripe",
-  },
-];
+interface SidebarProps {
+  currentPeriod: string;
+}
 
-export function Sidebar() {
+export function Sidebar({ currentPeriod }: SidebarProps) {
   const pathname = usePathname();
+
+  const NAV_ITEMS = [
+    {
+      label: "Period",
+      href: `/period/${encodeURIComponent(currentPeriod)}`,
+      icon: Calendar,
+      match: "/period",
+    },
+    {
+      label: "Exceptions",
+      href: "/exceptions",
+      icon: AlertCircle,
+      match: "/exceptions",
+    },
+    {
+      label: "Annual",
+      href: "/annual/2026",
+      icon: BarChart3,
+      match: "/annual",
+    },
+    {
+      label: "Budget",
+      href: "/budget/2026",
+      icon: TrendingUp,
+      match: "/budget",
+    },
+    {
+      label: "Clients",
+      href: "/clients",
+      icon: Users,
+      match: "/clients",
+    },
+    {
+      label: "Audit",
+      href: `/audit/${encodeURIComponent(currentPeriod)}`,
+      icon: FileText,
+      match: "/audit",
+    },
+    {
+      label: "Billing",
+      href: "/billing",
+      icon: Table2,
+      match: "/billing",
+    },
+    {
+      label: "Stripe",
+      href: "/stripe",
+      icon: CreditCard,
+      match: "/stripe",
+    },
+  ];
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-[#dddddd] flex flex-col min-h-screen">
