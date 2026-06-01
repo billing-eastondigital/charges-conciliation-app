@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
@@ -193,9 +194,19 @@ export default function StripeTransactionsClient({
                   {c.stripe_id || <span className="text-red-500 font-sans">no ID</span>}
                 </td>
                 <td className="px-3 py-2 text-[#3a3a3a] max-w-[180px]">
-                  <span className="truncate block" title={c.display_name}>
-                    {c.display_name}
-                  </span>
+                  {c.stripe_id ? (
+                    <Link
+                      href={`/client/${encodeURIComponent(c.stripe_id)}`}
+                      className="truncate block hover:text-[#0170B9] hover:underline"
+                      title={c.display_name}
+                    >
+                      {c.display_name}
+                    </Link>
+                  ) : (
+                    <span className="truncate block" title={c.display_name}>
+                      {c.display_name}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-center text-[#6b7280]">{c.batch}</td>
                 <td className="px-3 py-2 text-[#6b7280] max-w-[180px]">
