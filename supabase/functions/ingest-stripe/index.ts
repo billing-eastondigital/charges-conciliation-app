@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
 
     const accounts: Account[] = account === "both" ? ["main", "launch"] : [account as Account];
 
-    const summary: Record<string, { inserted: number; skipped: boolean; reason?: string }> = {};
+    const summary: Record<string, { inserted: number; skipped: boolean; reason?: string; new_clients?: number }> = {};
     let totalInserted = 0;
 
     for (const acct of accounts) {
@@ -230,6 +230,50 @@ Deno.serve(async (req) => {
       if (charges.length === 0) {
         summary[acct] = { inserted: 0, skipped: false };
         continue;
+      }
+
+      // ── Auto-create placeholder clients for unknown stripe IDs ────────────
+      const uniqueCustomerIds = [
+        ...new Set(charges.map((c) => c.customer).filter(Boolean)),
+      ] as string[];
+
+      if (uniqueCustomerIds.length > 0) {
+        const { data: existingClients } = await supabase
+          .from("clients")
+          .select("stripe_id")
+          .in("stripe_id", uniqueCustomerIds);
+
+        const knownIds = new Set((existingClients ?? []).map((c) => c.stripe_id));
+        const unknownIds = uniqueCustomerIds.filter((id) => !knownIds.has(id));
+
+        if (unknownIds.length > 0) {
+          // Build email lookup from charge billing_details
+          const emailByCustomer = new Map<string, string>();
+          for (const c of charges) {
+            if (c.customer && c.billing_details?.email) {
+              emailByCustomer.set(c.customer, c.billing_details.email);
+            }
+          }
+
+          const placeholders = unknownIds.map((id) => {
+            const email = emailByCustomer.get(id) ?? `unknown+${id}@placeholder.stripe`;
+            return {
+              stripe_id:    id,
+              display_name: emailByCustomer.get(id) ?? id,
+              primary_email: email,
+              // account_status, batch, accounts, is_active all use DB defaults
+            };
+          });
+
+          // ignoreDuplicates: true = ON CONFLICT DO NOTHING (safe for concurrent runs)
+          const { error: clientErr } = await supabase
+            .from("clients")
+            .upsert(placeholders, { onConflict: "stripe_id", ignoreDuplicates: true });
+
+          if (clientErr) throw clientErr;
+
+          summary[acct] = { ...(summary[acct] ?? {}), inserted: 0, skipped: false, new_clients: unknownIds.length };
+        }
       }
 
       const statuses = classifyCharges(charges);
@@ -262,7 +306,7 @@ Deno.serve(async (req) => {
 
       if (upsertErr) throw upsertErr;
 
-      summary[acct] = { inserted: rows.length, skipped: false };
+      summary[acct] = { ...(summary[acct] ?? {}), inserted: rows.length, skipped: false };
       totalInserted += rows.length;
     }
 

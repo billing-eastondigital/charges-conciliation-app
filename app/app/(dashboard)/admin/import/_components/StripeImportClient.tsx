@@ -10,6 +10,7 @@ interface AccountSummary {
   inserted: number;
   skipped: boolean;
   reason?: string;
+  new_clients?: number;
 }
 
 interface SyncResult {
@@ -131,7 +132,10 @@ export default function StripeImportClient({
                 {s.skipped ? (
                   <span className="text-amber-600">{s.reason}</span>
                 ) : (
-                  `${s.inserted} charges`
+                  <>
+                    {s.inserted} charges
+                    {s.new_clients ? ` · ${s.new_clients} new client${s.new_clients > 1 ? "s" : ""} created` : ""}
+                  </>
                 )}
               </p>
             ))}
