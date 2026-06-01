@@ -143,18 +143,35 @@ Deno.serve(async (req) => {
     );
 
     // Fetch period dates
+    // "auto" = find the most recent open period
+    let resolvedLabel = period_label;
+    if (period_label === "auto") {
+      const { data: openPeriod } = await supabase
+        .from("periods")
+        .select("period_label")
+        .eq("is_closed", false)
+        .order("start_date", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!openPeriod) {
+        return json({ error: "No open period found for auto-sync" }, 404);
+      }
+      resolvedLabel = openPeriod.period_label;
+    }
+
     const { data: period, error: pErr } = await supabase
       .from("periods")
       .select("period_label, start_date, end_date, is_closed")
-      .eq("period_label", period_label)
+      .eq("period_label", resolvedLabel)
       .single();
 
     if (pErr || !period) {
-      return json({ error: `Period "${period_label}" not found` }, 404);
+      return json({ error: `Period "${resolvedLabel}" not found` }, 404);
     }
 
     if (period.is_closed) {
-      return json({ error: `Period "${period_label}" is closed and cannot be re-synced` }, 409);
+      return json({ error: `Period "${resolvedLabel}" is closed and cannot be re-synced` }, 409);
     }
 
     const accounts: Account[] = account === "both" ? ["main", "launch"] : [account as Account];
@@ -195,7 +212,7 @@ Deno.serve(async (req) => {
         const firstRefund = c.refunds?.data?.[0] ?? null;
         return {
           charge_id:        c.id,
-          period_label,
+          period_label:     resolvedLabel,
           stripe_id:        c.customer ?? null,
           customer_email:   c.billing_details?.email ?? null,
           description:      c.description ?? null,
@@ -223,7 +240,7 @@ Deno.serve(async (req) => {
       totalInserted += rows.length;
     }
 
-    return json({ ok: true, period_label, total_inserted: totalInserted, accounts: summary }, 200);
+    return json({ ok: true, period_label: resolvedLabel, total_inserted: totalInserted, accounts: summary }, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return json({ error: message }, 500);
