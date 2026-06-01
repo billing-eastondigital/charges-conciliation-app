@@ -268,7 +268,14 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, period_label: resolvedLabel, total_inserted: totalInserted, accounts: summary }, 200);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    let message: string;
+    if (err instanceof Error) {
+      message = err.message;
+    } else if (err && typeof err === "object" && "message" in err) {
+      message = String((err as { message: unknown }).message);
+    } else {
+      message = String(err);
+    }
     return json({ error: message }, 500);
   }
 });
