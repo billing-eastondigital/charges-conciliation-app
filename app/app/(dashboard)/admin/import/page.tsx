@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import BillingImportClient from "./_components/BillingImportClient";
+import StripeImportClient from "./_components/StripeImportClient";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -44,6 +45,31 @@ export default async function ImportPage() {
       </div>
 
       <BillingImportClient
+        periods={periods}
+        supabaseFunctionsUrl={functionsUrl}
+        supabaseAnonKey={anonKey}
+      />
+
+      {/* ── Stripe Charges Sync ─────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-base font-semibold text-[#3a3a3a]">Sync Stripe Charges</h2>
+        <p className="text-sm text-[#6b7280] mt-0.5">
+          Pull charges directly from the Stripe API for a period. Existing charges are updated
+          in place — running this multiple times is safe.
+        </p>
+      </div>
+
+      <div className="bg-[#F5F5F5] border border-[#dddddd] rounded-sm px-5 py-4">
+        <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide mb-3">How it works</p>
+        <ol className="space-y-1.5 text-sm text-[#4B4F58] list-decimal list-inside">
+          <li>Select the period and which Stripe account(s) to pull from</li>
+          <li>The function fetches all charges within the period window from the Stripe API</li>
+          <li>Each charge is classified (PAID_NET / FAILED_HARD / REFUNDED / FAILED_RETRY)</li>
+          <li>Results are upserted into the database — existing rows are updated, not duplicated</li>
+        </ol>
+      </div>
+
+      <StripeImportClient
         periods={periods}
         supabaseFunctionsUrl={functionsUrl}
         supabaseAnonKey={anonKey}
