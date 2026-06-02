@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ClientRecord, BatchLabel, AccountStatus, Period } from "@/lib/types";
-import { updateClientLifecycle } from "../actions";
+import { updateClientInfo } from "../actions";
 
 // ── Types ────────────────────────────────────────────────────────
 type Tab = "directory" | "history";
@@ -39,11 +39,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// ── Edit lifecycle dialog ─────────────────────────────────────────
+// ── Edit client dialog ────────────────────────────────────────────
 
-interface EditForm { start_date: string; end_date: string }
+interface EditForm {
+  display_name: string;
+  primary_email: string;
+  batch: string;
+  google_id: string;
+  account_status: "ACTIVE" | "LOST" | "INACTIVE";
+  start_date: string;
+  end_date: string;
+}
 
-function EditLifecycleDialog({
+function EditClientDialog({
   client,
   onSave,
   onClose,
@@ -53,33 +61,47 @@ function EditLifecycleDialog({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<EditForm>({
-    start_date: client.start_date ?? "",
-    end_date:   client.end_date   ?? "",
+    display_name:   client.display_name,
+    primary_email:  client.primary_email,
+    batch:          client.batch ?? "—",
+    google_id:      client.google_id ?? "",
+    account_status: client.account_status ?? "ACTIVE",
+    start_date:     client.start_date ?? "",
+    end_date:       client.end_date   ?? "",
   });
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const willBeLost     = form.end_date.trim() !== "";
-  const wasLost        = client.end_date !== null;
+  const willBeLost     = form.end_date.trim() !== "" || form.account_status === "LOST";
+  const wasLost        = client.end_date !== null || client.account_status === "LOST";
   const willReactivate = wasLost && !willBeLost;
 
   function handleSave() {
-    const hasEnd = form.end_date.trim() !== "";
+    const hasEnd      = form.end_date.trim() !== "";
+    const isLost      = hasEnd || form.account_status === "LOST";
     const updates: Partial<ClientRecord> = {
+      display_name:      form.display_name.trim(),
+      primary_email:     form.primary_email.trim(),
+      batch:             form.batch as ClientRecord["batch"],
+      google_id:         form.google_id.trim() || null,
+      account_status:    isLost ? "LOST" : (form.account_status as AccountStatus),
+      is_active:         !isLost,
       start_date:        form.start_date.trim() || null,
       end_date:          hasEnd ? form.end_date.trim() : null,
-      account_status:    hasEnd ? "LOST" : "ACTIVE",
-      is_active:         !hasEnd,
-      deactivated_month: hasEnd ? form.end_date.trim().slice(0, 7) : null,
+      deactivated_month: isLost ? (hasEnd ? form.end_date.trim().slice(0, 7) : form.start_date.trim().slice(0, 7) || null) : null,
     };
 
     startTransition(async () => {
       if (client.stripe_id) {
-        await updateClientLifecycle(client.stripe_id, {
-          start_date:        updates.start_date ?? null,
-          end_date:          updates.end_date ?? null,
+        await updateClientInfo(client.stripe_id, {
+          display_name:      updates.display_name!,
+          primary_email:     updates.primary_email!,
+          batch:             updates.batch!,
+          google_id:         updates.google_id ?? null,
           account_status:    updates.account_status as "ACTIVE" | "LOST" | "INACTIVE",
           is_active:         updates.is_active!,
+          start_date:        updates.start_date ?? null,
+          end_date:          updates.end_date ?? null,
           deactivated_month: updates.deactivated_month ?? null,
         });
       }
@@ -89,44 +111,100 @@ function EditLifecycleDialog({
     });
   }
 
+  const selectClass = inputClass + " cursor-pointer";
+
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Edit client lifecycle</DialogTitle>
-          <p className="text-xs text-[#6b7280] mt-0.5">{client.display_name}</p>
+          <DialogTitle className="text-base">Edit client</DialogTitle>
+          <p className="text-xs text-[#6b7280] mt-0.5 font-mono">{client.stripe_id}</p>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <Field label="Start date">
-            <input
-              type="date"
-              value={form.start_date}
-              onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-              className={inputClass}
-              placeholder="YYYY-MM-DD"
-            />
-            <p className="text-[10px] text-[#9ca3af]">When the client was onboarded.</p>
-          </Field>
+          {/* Identity */}
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Display name">
+              <input
+                type="text"
+                value={form.display_name}
+                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                className={inputClass}
+                placeholder="Client name"
+              />
+            </Field>
+            <Field label="Primary email">
+              <input
+                type="email"
+                value={form.primary_email}
+                onChange={(e) => setForm((f) => ({ ...f, primary_email: e.target.value }))}
+                className={inputClass}
+                placeholder="client@example.com"
+              />
+            </Field>
+          </div>
 
-          <Field label="End date (churn)">
-            <input
-              type="date"
-              value={form.end_date}
-              onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
-              className={inputClass}
-              placeholder="YYYY-MM-DD — leave blank if active"
-            />
-            <p className="text-[10px] text-[#9ca3af]">Last day of service. Leave blank if the client is still active.</p>
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Batch">
+              <select
+                value={form.batch}
+                onChange={(e) => setForm((f) => ({ ...f, batch: e.target.value }))}
+                className={selectClass}
+              >
+                {(["1","2","3","SUBSCRIPTION","5","Consulting","Multiple","—"] as const).map((b) => (
+                  <option key={b} value={b}>{b === "—" ? "— (unassigned)" : `Batch ${b}`}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Google ID">
+              <input
+                type="text"
+                value={form.google_id}
+                onChange={(e) => setForm((f) => ({ ...f, google_id: e.target.value }))}
+                className={inputClass}
+                placeholder="Optional"
+              />
+            </Field>
+          </div>
 
-          {/* Warning / info banner */}
+          {/* Lifecycle */}
+          <div className="border-t border-[#eeeeee] pt-3 grid grid-cols-3 gap-3">
+            <Field label="Status">
+              <select
+                value={form.account_status}
+                onChange={(e) => setForm((f) => ({ ...f, account_status: e.target.value as EditForm["account_status"] }))}
+                className={selectClass}
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="INACTIVE">Inactive</option>
+                <option value="LOST">Lost</option>
+              </select>
+            </Field>
+            <Field label="Start date">
+              <input
+                type="date"
+                value={form.start_date}
+                onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="End date (churn)">
+              <input
+                type="date"
+                value={form.end_date}
+                onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+                className={inputClass}
+                placeholder="Leave blank if active"
+              />
+            </Field>
+          </div>
+
           {willBeLost && (
             <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-sm px-3 py-2.5">
               <AlertTriangle size={13} className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800">
-                Setting an end date will mark this client as <strong>Lost</strong> and set the
-                deactivated month to <strong>{form.end_date.slice(0, 7)}</strong>.
+                This client will be marked as <strong>Lost</strong>.
+                {form.end_date && <> Deactivated month: <strong>{form.end_date.slice(0, 7)}</strong>.</>}
               </p>
             </div>
           )}
@@ -142,7 +220,7 @@ function EditLifecycleDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>Cancel</Button>
-          <Button size="sm" onClick={handleSave} disabled={isPending}
+          <Button size="sm" onClick={handleSave} disabled={isPending || !form.display_name.trim()}
             className="bg-[#0170B9] hover:bg-[#015fa3] text-white rounded-sm">
             {isPending ? "Saving…" : "Save changes"}
           </Button>
@@ -194,7 +272,7 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
     <>
       {/* Edit dialog */}
       {editingClient && (
-        <EditLifecycleDialog
+        <EditClientDialog
           client={editingClient}
           onSave={applyEdit}
           onClose={() => setEditingClient(null)}
