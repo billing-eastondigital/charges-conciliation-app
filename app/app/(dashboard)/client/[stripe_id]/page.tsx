@@ -30,11 +30,12 @@ export default async function ClientPage({ params }: Props) {
   const supabase = await createClient();
 
   // Fetch client record + billing plans
-  const { data: clientRow } = await supabase
+  const { data: clientRows } = await supabase
     .from("clients")
     .select("*, client_billing_plans(*)")
     .eq("stripe_id", stripe_id)
-    .maybeSingle();
+    .limit(1);
+  const clientRow = clientRows?.[0] ?? null;
 
   // Fetch all reconciliation results for this stripe_id
   const { data: resultRows } = await supabase

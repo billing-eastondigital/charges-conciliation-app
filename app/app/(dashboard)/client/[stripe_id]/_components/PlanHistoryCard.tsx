@@ -17,6 +17,14 @@ export function PlanHistoryCard({ plans }: Props) {
   const active     = plans.find((p) => p.effective_to === null) ?? plans[plans.length - 1];
   const historical = plans.filter((p) => p !== active);
 
+  if (!active) {
+    return (
+      <div className="bg-white border border-[#dddddd] rounded-sm px-5 py-4">
+        <p className="text-sm text-[#6b7280]">No billing plan on record.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white border border-[#dddddd] rounded-sm">
       <div className="px-5 py-3.5 border-b border-[#dddddd]">
