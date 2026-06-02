@@ -143,29 +143,31 @@ Deno.serve(async (req) => {
     );
 
     // Fetch period dates
-    // "auto" = find the most recent open period, or create one for the current month
+    // "auto" = always target the CURRENT calendar month (create if missing)
     let resolvedLabel = period_label;
     if (period_label === "auto") {
-      const { data: openPeriod } = await supabase
-        .from("periods")
-        .select("period_label")
-        .eq("is_closed", false)
-        .order("start_date", { ascending: false })
-        .limit(1)
-        .single();
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const month = now.getUTCMonth(); // 0-indexed
+      const MONTH_NAMES = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December",
+      ];
+      const label = `${MONTH_NAMES[month]} ${year}`;
 
-      if (openPeriod) {
-        resolvedLabel = openPeriod.period_label;
+      const { data: existing } = await supabase
+        .from("periods")
+        .select("period_label, is_closed")
+        .eq("period_label", label)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.is_closed) {
+          return json({ error: `Period "${label}" is closed. Open it manually to re-sync.` }, 409);
+        }
+        resolvedLabel = label;
       } else {
-        // No open period — create one for the current UTC month
-        const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = now.getUTCMonth(); // 0-indexed
-        const MONTH_NAMES = [
-          "January","February","March","April","May","June",
-          "July","August","September","October","November","December",
-        ];
-        const label = `${MONTH_NAMES[month]} ${year}`;
+        // Period doesn't exist yet — create it
         const mm = String(month + 1).padStart(2, "0");
         const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
         const startDate = `${year}-${mm}-01`;
@@ -175,13 +177,7 @@ Deno.serve(async (req) => {
           .from("periods")
           .insert({ period_label: label, start_date: startDate, end_date: endDate, is_closed: false });
 
-        if (createErr) {
-          // 23505 = unique_violation: period exists but is closed — don't auto-reopen
-          if (createErr.code === "23505") {
-            return json({ error: `Period "${label}" already exists and is closed. Open it manually to re-sync.` }, 409);
-          }
-          throw createErr;
-        }
+        if (createErr) throw createErr;
         resolvedLabel = label;
       }
     }
