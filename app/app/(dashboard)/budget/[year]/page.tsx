@@ -20,15 +20,24 @@ const BUDGET_MONTHS_2026 = [
   { key: "2026-12", short: "Dec" },
 ];
 
-const PERIOD_TO_MONTH: Record<string, string> = {
-  "January 2026":  "2026-01",
-  "February 2026": "2026-02",
-  "March 2026":    "2026-03",
-  "April 2026":    "2026-04",
+const MONTH_TO_MM: Record<string, string> = {
+  January: "01", February: "02", March: "03", April: "04",
+  May: "05", June: "06", July: "07", August: "08",
+  September: "09", October: "10", November: "11", December: "12",
 };
 
-const YTD_CUTOFF = "2026-04";
-const NEXT_MONTH = "2026-05";
+function periodLabelToMonthKey(label: string): string | null {
+  const [month, year] = label.split(" ");
+  const mm = MONTH_TO_MM[month];
+  return mm && year ? `${year}-${mm}` : null;
+}
+
+function nextMonthKey(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  const nextM = m === 12 ? 1 : m + 1;
+  const nextY = m === 12 ? y + 1 : y;
+  return `${nextY}-${String(nextM).padStart(2, "0")}`;
+}
 
 interface BudgetPageProps {
   params: Promise<{ year: string }>;
@@ -50,8 +59,21 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     supabase
       .from("reconciliation_results")
       .select("stripe_id, period_label, collected_amount")
-      .in("period_label", Object.keys(PERIOD_TO_MONTH)),
+      .like("period_label", `% ${yearNum}`),
   ]);
+
+  // Build PERIOD_TO_MONTH dynamically from whatever periods exist in the DB
+  const PERIOD_TO_MONTH: Record<string, string> = {};
+  for (const row of reconRows ?? []) {
+    if (!PERIOD_TO_MONTH[row.period_label]) {
+      const key = periodLabelToMonthKey(row.period_label);
+      if (key) PERIOD_TO_MONTH[row.period_label] = key;
+    }
+  }
+
+  const reconMonthKeys = Object.values(PERIOD_TO_MONTH).sort();
+  const YTD_CUTOFF = reconMonthKeys[reconMonthKeys.length - 1] ?? `${yearNum}-01`;
+  const NEXT_MONTH = nextMonthKey(YTD_CUTOFF);
 
   // Build actuals map: stripe_id → { "2026-04": amount }
   const actuals: Record<string, Record<string, number>> = {};

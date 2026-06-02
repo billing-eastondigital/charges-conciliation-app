@@ -36,9 +36,9 @@ export default async function AnnualPage({ params }: AnnualPageProps) {
       .like("period_label", `% ${yearNum}`),
     supabase
       .from("stripe_charges")
-      .select("period_label, amount, stripe_id, raw_stripe_status")
+      .select("period_label, amount, stripe_id, charge_status")
       .like("period_label", `% ${yearNum}`)
-      .eq("raw_stripe_status", "Paid"),
+      .eq("charge_status", "PAID_NET"),
   ]);
 
   // Aggregate reconciliation_results by period
