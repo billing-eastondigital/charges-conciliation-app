@@ -306,7 +306,83 @@ Deno.serve(async (req) => {
       totalInserted += rows.length;
     }
 
-    return json({ ok: true, period_label: resolvedLabel, total_inserted: totalInserted, accounts: summary }, 200);
+    // ── Settlement catch-up: re-sync previous month if still open ──────────
+    // ACH charges can settle 3–5 business days after creation, crossing a
+    // month boundary. If last month's period is still open, re-run it so
+    // any pending→succeeded transitions get picked up automatically.
+    let settlementResult: Record<string, unknown> | null = null;
+    if (period_label === "auto") {
+      const now2 = new Date();
+      const prevMonth = now2.getUTCMonth() === 0 ? 11 : now2.getUTCMonth() - 1;
+      const prevYear  = now2.getUTCMonth() === 0 ? now2.getUTCFullYear() - 1 : now2.getUTCFullYear();
+      const MONTH_NAMES2 = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December",
+      ];
+      const prevLabel = `${MONTH_NAMES2[prevMonth]} ${prevYear}`;
+
+      const { data: prevPeriod } = await supabase
+        .from("periods")
+        .select("period_label, is_closed")
+        .eq("period_label", prevLabel)
+        .maybeSingle();
+
+      if (prevPeriod && !prevPeriod.is_closed) {
+        const { data: pendingRows } = await supabase
+          .from("stripe_charges")
+          .select("charge_id")
+          .eq("period_label", prevLabel)
+          .eq("raw_stripe_status", "pending")
+          .limit(1);
+
+        if (pendingRows && pendingRows.length > 0) {
+          // There are pending charges in the previous month — re-sync it
+          const prevPeriodFull = await supabase
+            .from("periods")
+            .select("period_label, start_date, end_date, is_closed")
+            .eq("period_label", prevLabel)
+            .single();
+
+          if (prevPeriodFull.data) {
+            const p = prevPeriodFull.data;
+            let prevTotal = 0;
+            const prevSummary: Record<string, unknown> = {};
+            for (const acct of accounts) {
+              const keyName = acct === "main" ? "STRIPE_SECRET_KEY_MAIN" : "STRIPE_SECRET_KEY_LAUNCH";
+              const apiKey = Deno.env.get(keyName);
+              if (!apiKey) { prevSummary[acct] = { skipped: true }; continue; }
+
+              const estOffsetMs = acct === "main" ? 5 * 3600 * 1000 : 0;
+              const startUnix = Math.floor((new Date(`${p.start_date}T00:00:00Z`).getTime() + estOffsetMs) / 1000);
+              const endUnix   = Math.floor((new Date(`${p.end_date}T23:59:59Z`).getTime() + estOffsetMs) / 1000);
+              const prevCharges = await fetchAllCharges(apiKey, startUnix, endUnix);
+              if (prevCharges.length === 0) { prevSummary[acct] = { inserted: 0 }; continue; }
+
+              const prevStatuses = classifyCharges(prevCharges);
+              const prevRows = prevCharges.map((c) => {
+                const firstRefund = c.refunds?.data?.[0] ?? null;
+                return {
+                  charge_id: c.id, period_label: prevLabel,
+                  stripe_id: c.customer ?? null, customer_email: c.billing_details?.email ?? null,
+                  description: c.description ?? null, amount: (c.amount / 100).toFixed(2),
+                  currency: c.currency ?? "usd", created_at_stripe: new Date(c.created * 1000).toISOString(),
+                  charge_status: prevStatuses.get(c.id)!, amount_refunded: (c.amount_refunded / 100).toFixed(2),
+                  refunded_at: firstRefund ? new Date(firstRefund.created * 1000).toISOString() : null,
+                  raw_stripe_status: c.status, source_account: acct,
+                };
+              });
+              const { error: prevErr } = await supabase.from("stripe_charges").upsert(prevRows, { onConflict: "charge_id" });
+              if (prevErr) throw prevErr;
+              prevSummary[acct] = { inserted: prevRows.length };
+              prevTotal += prevRows.length;
+            }
+            settlementResult = { period_label: prevLabel, total_inserted: prevTotal, accounts: prevSummary };
+          }
+        }
+      }
+    }
+
+    return json({ ok: true, period_label: resolvedLabel, total_inserted: totalInserted, accounts: summary, settlement_catchup: settlementResult }, 200);
   } catch (err) {
     let message: string;
     if (err instanceof Error) {
