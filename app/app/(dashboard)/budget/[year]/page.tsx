@@ -50,8 +50,8 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
 
   const supabase = await createClient();
 
-  // Fetch clients with their billing plans + reconciliation actuals in parallel
-  const [{ data: clientRows }, { data: reconRows }] = await Promise.all([
+  // Fetch clients, reconciliation actuals, and Stripe charges in parallel
+  const [{ data: clientRows }, { data: reconRows }, { data: stripeRows }] = await Promise.all([
     supabase
       .from("clients")
       .select("id, stripe_id, display_name, primary_email, batch, is_active, deactivated_month, client_billing_plans(billing_plan, billing_details, billing_pct, billing_day, notes, projection_type, projection_amount, manual_overrides, effective_from, effective_to)")
@@ -60,9 +60,14 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
       .from("reconciliation_results")
       .select("stripe_id, period_label, collected_amount")
       .like("period_label", `% ${yearNum}`),
+    supabase
+      .from("stripe_charges")
+      .select("stripe_id, period_label, amount")
+      .like("period_label", `% ${yearNum}`)
+      .eq("charge_status", "PAID_NET"),
   ]);
 
-  // Build PERIOD_TO_MONTH dynamically from whatever periods exist in the DB
+  // Build PERIOD_TO_MONTH dynamically from whatever reconciled periods exist in the DB
   const PERIOD_TO_MONTH: Record<string, string> = {};
   for (const row of reconRows ?? []) {
     if (!PERIOD_TO_MONTH[row.period_label]) {
@@ -71,11 +76,10 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     }
   }
 
-  const reconMonthKeys = Object.values(PERIOD_TO_MONTH).sort();
-  const YTD_CUTOFF = reconMonthKeys[reconMonthKeys.length - 1] ?? `${yearNum}-01`;
-  const NEXT_MONTH = nextMonthKey(YTD_CUTOFF);
+  const reconMonthKeySet = new Set(Object.values(PERIOD_TO_MONTH));
 
-  // Build actuals map: stripe_id → { "2026-04": amount }
+  // Build actuals map: stripe_id → { "2026-05": amount }
+  // Primary source: reconciliation_results (authoritative for closed/reconciled months)
   const actuals: Record<string, Record<string, number>> = {};
   for (const row of reconRows ?? []) {
     const monthKey = PERIOD_TO_MONTH[row.period_label];
@@ -83,6 +87,23 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     if (!actuals[row.stripe_id]) actuals[row.stripe_id] = {};
     actuals[row.stripe_id][monthKey] = parseFloat(String(row.collected_amount ?? "0"));
   }
+
+  // Secondary source: stripe_charges for months not yet reconciled
+  // This assigns each charge to its actual month column instead of repeating it as a projection
+  const stripeOnlyMonthKeys = new Set<string>();
+  for (const row of stripeRows ?? []) {
+    if (!row.stripe_id || !row.period_label) continue;
+    const monthKey = periodLabelToMonthKey(row.period_label);
+    if (!monthKey || reconMonthKeySet.has(monthKey)) continue; // skip already-reconciled months
+    stripeOnlyMonthKeys.add(monthKey);
+    if (!actuals[row.stripe_id]) actuals[row.stripe_id] = {};
+    actuals[row.stripe_id][monthKey] = (actuals[row.stripe_id][monthKey] ?? 0) + parseFloat(String(row.amount ?? "0"));
+  }
+
+  // YTD_CUTOFF = last month with any actual data (recon OR Stripe)
+  const allActualMonthKeys = [...reconMonthKeySet, ...stripeOnlyMonthKeys].sort();
+  const YTD_CUTOFF = allActualMonthKeys[allActualMonthKeys.length - 1] ?? `${yearNum}-01`;
+  const NEXT_MONTH = nextMonthKey(YTD_CUTOFF);
 
   // Build ClientProjectionRule[] from DB rows
   const clients: ClientProjectionRule[] = (clientRows ?? [])
