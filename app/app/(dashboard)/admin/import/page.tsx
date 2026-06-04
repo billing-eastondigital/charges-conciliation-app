@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import BillingImportClient from "./_components/BillingImportClient";
 import StripeImportClient from "./_components/StripeImportClient";
+import ReconcileClient from "./_components/ReconcileClient";
 
 export default async function ImportPage() {
   const supabase = await createClient();
@@ -70,6 +71,32 @@ export default async function ImportPage() {
       </div>
 
       <StripeImportClient
+        periods={periods}
+        supabaseFunctionsUrl={functionsUrl}
+        supabaseAnonKey={anonKey}
+      />
+
+      {/* ── Run Reconciliation ──────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-base font-semibold text-[#3a3a3a]">Run Reconciliation</h2>
+        <p className="text-sm text-[#6b7280] mt-0.5">
+          Match expected charges against Stripe payments and compute variances.
+          Run this after importing billing data and syncing Stripe charges.
+          Re-running is safe — existing results for the period are replaced.
+        </p>
+      </div>
+
+      <div className="bg-[#F5F5F5] border border-[#dddddd] rounded-sm px-5 py-4">
+        <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-wide mb-3">How it works</p>
+        <ol className="space-y-1.5 text-sm text-[#4B4F58] list-decimal list-inside">
+          <li>Reads all billing rows and Stripe charges for the selected period</li>
+          <li>Groups by Stripe customer ID — only PAID_NET charges count toward collected amount</li>
+          <li>Classifies each row: MATCH · OVERPAID · UNDERPAID · MISSING_PAYMENT · STRIPE_ONLY · FAILED_HARD · REFUNDED</li>
+          <li>Writes results + opens exceptions for any non-MATCH rows</li>
+        </ol>
+      </div>
+
+      <ReconcileClient
         periods={periods}
         supabaseFunctionsUrl={functionsUrl}
         supabaseAnonKey={anonKey}
