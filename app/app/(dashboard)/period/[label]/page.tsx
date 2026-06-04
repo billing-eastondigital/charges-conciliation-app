@@ -97,27 +97,29 @@ export default async function PeriodPage({ params }: Props) {
     const prevPeriod = currentIdx > 0 ? sortedPeriods[currentIdx - 1] : null;
 
     if (prevPeriod) {
-      // Fetch Paid stripe charges for current + previous period
-      const [{ data: currCharges }, { data: prevCharges }] = await Promise.all([
-        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", periodLabel).eq("charge_status", "PAID_NET"),
-        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", prevPeriod.period_label).eq("charge_status", "PAID_NET"),
+      // Use reconciliation_results as source of truth for the MoM bridge —
+      // avoids double-counting from duplicate stripe_charges rows (CSV vs API loads)
+      const [{ data: currRecon }, { data: prevRecon }] = await Promise.all([
+        supabase.from("reconciliation_results").select("stripe_id, collected_amount, display_name, primary_email").eq("period_label", periodLabel),
+        supabase.from("reconciliation_results").select("stripe_id, collected_amount, display_name, primary_email").eq("period_label", prevPeriod.period_label),
       ]);
 
       // Build stripe_id → collected maps
       const currMap = new Map<string, { collected: number; email: string }>();
-      for (const c of currCharges ?? []) {
-        const key = c.stripe_id ?? c.customer_email ?? "unknown";
-        const existing = currMap.get(key);
-        currMap.set(key, { collected: (existing?.collected ?? 0) + parseFloat(String(c.amount ?? 0)), email: c.customer_email ?? key });
+      for (const r of currRecon ?? []) {
+        const key = r.stripe_id ?? r.primary_email ?? "unknown";
+        const collected = parseFloat(String(r.collected_amount ?? 0));
+        if (collected > 0) currMap.set(key, { collected, email: r.display_name ?? r.primary_email ?? key });
       }
       const prevMap = new Map<string, number>();
-      for (const c of prevCharges ?? []) {
-        const key = c.stripe_id ?? c.customer_email ?? "unknown";
-        prevMap.set(key, (prevMap.get(key) ?? 0) + parseFloat(String(c.amount ?? 0)));
+      for (const r of prevRecon ?? []) {
+        const key = r.stripe_id ?? r.primary_email ?? "unknown";
+        const collected = parseFloat(String(r.collected_amount ?? 0));
+        if (collected > 0) prevMap.set(key, collected);
       }
 
-      // Build lookup: stripe_id → display_name
-      const clientNameMap = new Map(allClients.map((c) => [c.stripe_id ?? c.primary_email, c.display_name]));
+      // Name lookup: currMap already carries display_name in the .email field
+      const clientNameMap = new Map([...currMap.entries()].map(([k, v]) => [k, v.email]));
 
       const priorCollected   = [...prevMap.values()].reduce((s, v) => s + v, 0);
       const currentCollected = [...currMap.values()].reduce((s, v) => s + v.collected, 0);
