@@ -1,6 +1,6 @@
 ---
 name: data-quality
-description: Diagnose data quality problems in the master billing workbook and propose fixes WITHOUT silently rewriting history. Use when the user says "the engine is failing on {tab}", "weird numbers in {sheet}", "data quality issue", "fix the AR sheet", "el motor falla con {hoja}", or when historical_ingest skips a period or produces obviously wrong results. This skill identifies the root cause (missing Stripe ID, malformed numbers, embedded notes, locale-specific decimal separators) and proposes a fix that is auditable and reversible.
+description: Diagnose data quality problems in the billing data and propose fixes WITHOUT silently rewriting history. Use when the user says "the engine is failing on {period}", "weird numbers in {period}", "data quality issue", "fix the AR sheet", "el motor falla con {período}", "importación falló", "upload failed", "el import no funcionó", or when the engine produces obviously wrong results for a period. This skill identifies the root cause (missing Stripe ID, malformed numbers, embedded notes, locale-specific decimal separators) and proposes a fix that is auditable and reversible.
 ---
 
 # Data Quality
@@ -11,49 +11,59 @@ You are diagnosing dirty data. Your goal is to identify the problem precisely, n
 
 | Symptom | Likely cause | Fix pattern |
 |---|---|---|
-| `sequence item 0: expected str instance, float found` on a tab | NaN floats in cells expected to be strings (Account Name, Email, Stripe Id) | Defensive cast in code (already in place); for sheet-level repair, replace NaN with empty string in source |
+| `sequence item 0: expected str instance, float found` | NaN floats in cells expected to be strings (Account Name, Email, Stripe Id) | Defensive cast in code (already in place); for sheet-level repair, replace NaN with empty string in source and re-upload via /admin/import |
 | Stripe Id cell contains an email address or free-text note | Manual data-entry where the field was repurposed | Move the note to `Custom Billing Notes`; leave Stripe Id empty if unknown; flag the row |
 | `Total to Bill` shows zero for an ACTIVE account | Formula didn't propagate, OR the row is genuinely $0 (rare) | Inspect adjacent columns (Google Revenue, Base Fee, etc.); recompute by formula; if intentional, document |
-| Decimal separator inconsistency (e.g. `1.234,56`) | Locale-specific Excel save (es-AR locale) | Normalize on ingest with `pd.to_numeric(..., errors='coerce')` after stripping locale chars |
-| Date in column but engine ignores it | Excel "Date" mode vs Text mode mismatch | `pd.to_datetime(..., errors='coerce')` |
+| Decimal separator inconsistency (e.g. `1.234,56`) | Locale-specific Excel save (es-AR locale) | Normalize in the source file, then re-upload via /admin/import |
 | Same `Stripe Id` for accounts that aren't actually one client | Copy-paste error during AR sheet maintenance | THIS IS NOT A FIX — flag it, ask the user. Do not change `Stripe Id` without confirmation. |
 
 ## Procedure
 
 ### Step 1 — Reproduce the problem
 
-```bash
-python -c "
-from reconciliation_engine.loaders import load_billing_sheet
-df = load_billing_sheet('./data/billing.xlsx', '{sheet_name}')
-print(df.info())
-print(df.head(20))
-"
-```
+Query Supabase to inspect the loaded data:
 
-Or if `historical_ingest.py` is skipping the tab, the error message in the skip line tells you which exception was raised. Re-run with `python -X tracebacks` to see the full trace.
-
-### Step 2 — Inspect the offending cells
-
-```python
-import pandas as pd
-raw = pd.read_excel('./data/billing.xlsx', sheet_name='{sheet}', header=None)
-# Show the rows around the problem index, with all 50 columns
-print(raw.iloc[{row-2}:{row+3}].to_string())
+```sql
+SELECT account_name, stripe_id, expected_amount, batch
+FROM expected_charges
+WHERE period_label = '{period}'
+ORDER BY account_name;
 ```
 
 Look for:
-- Mixed types in a column (some strings, some floats, some NaT)
-- Cells that contain commentary instead of values (e.g. "ask Greg" in the Total to Bill column)
-- Trailing whitespace, hidden characters
-- Merged cells (Excel oddity that produces NaN in all but the top-left)
+- null `stripe_id` with non-zero `expected_amount` (can't be reconciled)
+- duplicate account names (possible double-upload)
+- zero `expected_amount` rows that appear active (placeholder rows)
+
+If the issue is in the original xlsx before upload, and the file is available locally:
+
+```python
+python3 -c "import openpyxl; wb=openpyxl.load_workbook('./data/billing.xlsx'); ws=wb.active; [print(r) for r in list(ws.iter_rows(values_only=True))[0:5]]"
+```
+
+### Step 2 — Inspect the offending rows
+
+For rows with missing or suspicious values, pull more detail:
+
+```sql
+SELECT *
+FROM expected_charges
+WHERE period_label = '{period}'
+  AND (stripe_id IS NULL OR expected_amount = 0 OR expected_amount IS NULL)
+ORDER BY account_name;
+```
+
+Look for:
+- Mixed types or unexpected values in `stripe_id` (e.g. an email address instead of a cus_ ID)
+- Rows that are clearly inactive placeholders vs rows that should have real amounts
+- Duplicate stripe_ids that shouldn't map to the same client
 
 ### Step 3 — Classify the issue
 
 | Class | Action |
 |---|---|
 | Code defect (engine doesn't tolerate valid-but-unusual data) | Fix the engine, add a regression test, no sheet change |
-| Data-entry error in the sheet (typo, wrong column) | Propose sheet edit; show before/after; user applies |
+| Data-entry error in the sheet (typo, wrong column) | Propose sheet edit; show before/after; user fixes in source file and re-uploads via /admin/import |
 | Genuinely missing data (no Stripe Id for an active account) | Flag for the user — engine cannot reconcile this row, will be in `expected_charges` but no match |
 | Ambiguity (one Stripe Id, multiple Account Names, but unclear if intentional) | DO NOT touch — ask the user to confirm via `client_directory` |
 
@@ -64,8 +74,8 @@ Output:
 ```
 ISSUE
 ─────
-Sheet:   {sheet}
-Row:     {row} (Account Name: {name})
+Period:  {period}
+Row:     {account_name}
 Symptom: {error or anomaly}
 
 ROOT CAUSE
@@ -83,11 +93,13 @@ A) Code change (engine bug)
    Risk:    {what closed periods could this affect?}
 
 B) Sheet edit (data correction)
-   Cell:    {sheet}!{ref}
+   Account: {account_name}
+   Field:   {column}
    Before:  '{current_value}'
    After:   '{proposed_value}'
    Note:    Why this is the right value.
-   Audit:   Add note to 'Custom Billing Notes' column row {row}: "Corrected {YYYY-MM-DD}: was '{old}', set to '{new}', reason: {...}"
+   Action:  Fix in the billing sheet source file, then re-upload via /admin/import.
+   Audit:   Add note to 'Custom Billing Notes' column for this row: "Corrected {YYYY-MM-DD}: was '{old}', set to '{new}', reason: {...}"
 
 C) Engine guard (sheet stays as-is, engine handles it gracefully)
    File:    engine/reconciliation_engine/{module}.py

@@ -3,7 +3,7 @@ name: stripe-recon-gap
 description: Diagnose the gap between Stripe PAID_NET total and the reconciliation collected total for a period. Use when the user says "stripe shows X but period page shows Y", "there's a $X discrepancy", "missing amount in period page", "gap between stripe and reconciliation", "why does collected not match", or "discrepancy in collected amounts".
 ---
 
-# Stripe ↔ Reconciliation Gap Analysis
+# Stripe <-> Reconciliation Gap Analysis
 
 You are a forensic analyst. Your job is to explain, to the dollar, why the Stripe PAID_NET total for a period differs from the reconciliation `collected_amount` total shown on the Period page. Every dollar of gap must be accounted for with a named root cause.
 
@@ -59,7 +59,7 @@ SELECT
   sc.amount,
   sc.created_at_stripe,
   sc.source_account,
-  c.display_name
+  COALESCE(rr.display_name, c.display_name) AS display_name
 FROM stripe_charges sc
 LEFT JOIN reconciliation_results rr
   ON rr.period_label = '{period_label}' AND rr.stripe_id = sc.stripe_id
@@ -74,11 +74,11 @@ For each unattributed charge, classify the root cause:
 
 | Root cause | Signal | Fix |
 |---|---|---|
-| **No Stripe ID** | `stripe_id IS NULL` | Add customer ID to billing sheet, re-run engine |
+| **No Stripe ID** | `stripe_id IS NULL` | Add customer ID to billing sheet, re-import via /admin/import, re-run engine |
 | **New customer** | `stripe_id` not in `clients` table | Auto-placeholder should have been created; check client DB |
 | **Wrong period** | Charge date near month boundary | Verify EST vs UTC timezone; may belong to adjacent period |
-| **Post-duplicate-cleanup orphan** | Charge was previously reconciled under old CSV charge_id | Re-run engine to regenerate results |
-| **STRIPE_ONLY not yet reconciled** | Engine hasn't been run since charge was loaded | Re-run engine |
+| **Post-duplicate-cleanup orphan** | Charge was previously reconciled under old CSV charge_id | Re-run engine: `python3 -m reconciliation_engine.cli --period "{period_label}"` |
+| **STRIPE_ONLY not yet reconciled** | Engine hasn't been run since charge was loaded | Re-run engine: `python3 -m reconciliation_engine.cli --period "{period_label}"` |
 
 ---
 
@@ -91,11 +91,12 @@ If `recon_collected > stripe_paid_net`, the engine counted more than Stripe show
 -- (e.g. FAILED_RETRY counted as PAID, or duplicate CSV rows still present)
 SELECT
   rr.stripe_id,
-  rr.display_name,
+  COALESCE(rr.display_name, c.display_name) AS display_name,
   rr.collected_amount   AS recon_says,
   COALESCE(sc_agg.total_paid, 0) AS stripe_says,
   rr.collected_amount - COALESCE(sc_agg.total_paid, 0) AS over_count
 FROM reconciliation_results rr
+LEFT JOIN clients c ON c.stripe_id = rr.stripe_id
 LEFT JOIN (
   SELECT stripe_id, SUM(amount) AS total_paid
   FROM stripe_charges
@@ -166,7 +167,7 @@ Flag any customer where `sources > 1` (same customer charged by both CSV seed an
 Produce a structured gap report:
 
 ```
-STRIPE ↔ RECONCILIATION GAP REPORT — {period_label}
+STRIPE <-> RECONCILIATION GAP REPORT — {period_label}
 ════════════════════════════════════════════════════
 
 Stripe PAID_NET total : ${stripe_paid_net}
@@ -193,13 +194,13 @@ ROOT CAUSES
 VERIFICATION
 ─────────────
 Accounted gap: ${sum_of_all_causes}
-Unexplained  : ${gap - accounted_gap}   ← should be $0.00
+Unexplained  : ${gap - accounted_gap}   <- should be $0.00
 
 RECOMMENDED ACTIONS
 ────────────────────
 {ordered list of concrete next steps, e.g.:}
 1. Re-run the reconciliation engine: python3 -m reconciliation_engine.cli --period "{period_label}"
-2. Add Stripe ID for {customer_email} to billing sheet and re-import
+2. Add Stripe ID for {customer_email} to billing sheet and re-import via /admin/import
 3. Delete duplicate CSV rows for {stripe_id} (source_account = null, non-Launch)
 ```
 

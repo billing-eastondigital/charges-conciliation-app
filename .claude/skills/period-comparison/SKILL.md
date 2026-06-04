@@ -24,11 +24,11 @@ WITH t AS (
          SUM(expected_amount)  AS billed,
          SUM(collected_amount) AS collected,
          SUM(variance)         AS variance,
-         COUNT(*)                                  AS n_clients,
-         COUNT(*) FILTER (WHERE status = 'MATCH')  AS n_matches,
-         COUNT(*) FILTER (WHERE status <> 'MATCH') AS n_exceptions
+         COUNT(*)                                          AS n_clients,
+         COUNT(*) FILTER (WHERE recon_status = 'MATCH')   AS n_matches,
+         COUNT(*) FILTER (WHERE recon_status <> 'MATCH')  AS n_exceptions
   FROM reconciliation_results
-  WHERE period_label IN (?, ?)
+  WHERE period_label IN ('{period_a}', '{period_b}')
   GROUP BY period_label
 )
 SELECT * FROM t;
@@ -41,35 +41,33 @@ Compute deltas: absolute and percent.
 ```sql
 SELECT
   COALESCE(a.stripe_id, b.stripe_id) AS stripe_id,
-  COALESCE(a.account_names, b.account_names) AS client,
-  b.expected_amount AS expected_prior,
-  a.expected_amount AS expected_this,
-  b.collected_amount AS collected_prior,
-  a.collected_amount AS collected_this,
-  b.status AS status_prior,
-  a.status AS status_this,
-  COALESCE(a.collected_amount,0) - COALESCE(b.collected_amount,0) AS collected_delta
+  COALESCE(a.display_name, b.display_name) AS display_name,
+  a.expected_amount AS expected_a, a.collected_amount AS collected_a, a.recon_status AS status_a,
+  b.expected_amount AS expected_b, b.collected_amount AS collected_b, b.recon_status AS status_b,
+  COALESCE(a.collected_amount, 0) - COALESCE(b.collected_amount, 0) AS collected_delta
 FROM reconciliation_results a
 FULL OUTER JOIN reconciliation_results b
   ON a.stripe_id = b.stripe_id
-WHERE a.period_label = ? AND b.period_label = ?;
+  AND a.period_label = '{period_a}'
+  AND b.period_label = '{period_b}'
+WHERE a.period_label = '{period_a}' OR b.period_label = '{period_b}';
 ```
 
 Bucket into:
 - **New clients** (in A, not in B)
 - **Lost clients / churn** (in B, not in A — and check if their `account_status = LOST`)
-- **Improved**: `status_prior <> 'MATCH'` AND `status_this = 'MATCH'`
-- **Regressed**: `status_prior = 'MATCH'` AND `status_this <> 'MATCH'`
+- **Improved**: `status_b <> 'MATCH'` AND `status_a = 'MATCH'`
+- **Regressed**: `status_b = 'MATCH'` AND `status_a <> 'MATCH'`
 - **Persistent exceptions**: same non-MATCH status both periods
 - **Material variance changes**: |collected_delta| > $500 even if both are MATCH (large client growth/shrink)
 
 ### Step 3 — Exception changes
 
 ```sql
-SELECT period_label, status, COUNT(*) AS n, SUM(ABS(variance)) AS at_risk
+SELECT period_label, recon_status, COUNT(*) AS n, SUM(ABS(variance)) AS at_risk
 FROM reconciliation_results
-WHERE period_label IN (?, ?) AND status <> 'MATCH'
-GROUP BY period_label, status;
+WHERE period_label IN ('{period_a}', '{period_b}') AND recon_status <> 'MATCH'
+GROUP BY period_label, recon_status;
 ```
 
 Note any new exception types appearing or disappearing.
@@ -81,8 +79,8 @@ Lead with the headline, then drill in:
 ```
 {period_a} vs {period_b}
 ─────────────────────────
-Billed:     ${a} → ${b}   (Δ ${delta}, {pct}%)
-Collected:  ${a} → ${b}   (Δ ${delta}, {pct}%)
+Billed:     ${a} → ${b}   (delta ${delta}, {pct}%)
+Collected:  ${a} → ${b}   (delta ${delta}, {pct}%)
 Variance:   ${a} → ${b}
 Matches:    {a}/{n} → {b}/{n}
 Exceptions: {a} → {b}
@@ -90,27 +88,27 @@ Exceptions: {a} → {b}
 NOTABLE CHANGES
 ──────────────
 NEW CLIENTS ({n}):
-  - {client} — ${expected_this}
+  - {client} — ${expected_a}
   ...
 
 CHURN ({n}):
   - {client} — last billed {amount}
   ...
 
-REGRESSED ({n}):  ← clients that matched last period but not this one
-  - {client} — was MATCH, now {status_this} (${collected_delta})
+REGRESSED ({n}):  <- clients that matched last period but not this one
+  - {client} — was MATCH, now {status_a} (${collected_delta})
   ...
 
-IMPROVED ({n}):  ← collections cleared up
-  - {client} — was {status_prior}, now MATCH
+IMPROVED ({n}):  <- collections cleared up
+  - {client} — was {status_b}, now MATCH
   ...
 
-PERSISTENT EXCEPTIONS ({n}):  ← still broken — needs intervention
-  - {client} — {status} for {streak} consecutive periods (${total_at_risk})
+PERSISTENT EXCEPTIONS ({n}):  <- still broken — needs intervention
+  - {client} — {recon_status} for {streak} consecutive periods (${total_at_risk})
   ...
 
 REVENUE MOVERS ({n} largest |delta|):
-  - {client} — ${collected_prior} → ${collected_this}  (${delta})
+  - {client} — ${collected_b} → ${collected_a}  (${delta})
   ...
 ```
 
@@ -123,6 +121,6 @@ For each NOTABLE bucket, suggest the next skill:
 
 ## Guardrails
 
-- Don't report comparisons against periods that aren't `closed = true`. Open periods are still mutating.
+- Don't report comparisons against periods that aren't `is_closed = true`. Open periods are still mutating.
 - If both periods don't have substantial data (< 5 reconciled rows), say so and stop.
 - Percent deltas should suppress when the base is < $100 (a 200% change on $10 → $30 is noise, not signal).

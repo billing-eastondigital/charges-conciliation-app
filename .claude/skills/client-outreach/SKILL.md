@@ -17,21 +17,32 @@ If any are missing, ask the user.
 
 ## Procedure
 
+### Step 0 — Verify client exists in reconciliation results
+
+If `cus_id` is provided but no reconciliation result is found for the period, look up the client directly:
+
+```sql
+SELECT * FROM clients WHERE stripe_id = '{cus_id}';
+```
+
+Use whatever context is available (display_name, primary_email, account_status) and proceed with drafting based on the exception type provided.
+
 ### Step 1 — Pull client context
 
 ```sql
-SELECT r.stripe_id, r.account_names, r.email, r.expected_amount,
-       r.collected_amount, r.variance, r.status, r.period_label,
-       r.paid_charge_count, r.hard_fail_count
+SELECT r.stripe_id, r.display_name, cl.primary_email AS email,
+       r.expected_amount, r.collected_amount, r.variance,
+       r.recon_status, r.period_label
 FROM reconciliation_results r
+JOIN clients cl ON cl.stripe_id = r.stripe_id
 WHERE r.stripe_id = '{cus_id}' AND r.period_label = '{period}';
 
 -- Last 3 months of relationship
-SELECT period_label, status, variance FROM reconciliation_results
+SELECT period_label, recon_status, variance FROM reconciliation_results
 WHERE stripe_id = '{cus_id}' ORDER BY period_label DESC LIMIT 3;
 
 -- Specific charges for this period
-SELECT created_at, amount, status, classification, decline_reason, invoice_id
+SELECT created_at_stripe, amount, charge_status, decline_reason, invoice_id
 FROM stripe_charges WHERE stripe_id = '{cus_id}' AND period_label = '{period}';
 ```
 
@@ -74,15 +85,15 @@ SUBJECT:   {subject_line}
 LANGUAGE:  {Spanish | English}
 EXCEPTION: {type} — ${amount_at_risk}
 
-─── Variant A: Firm ───────────────────────
+--- Variant A: Firm ---
 {body}
 
-─── Variant B: Gentle ─────────────────────
+--- Variant B: Gentle ---
 {body}
 
-─── Notes for the owner ──────────────────
-- Last paid period: {period_label} (${amount}, status {status})
-- This is the {n}th consecutive month with {status}
+--- Notes for the owner ---
+- Last paid period: {period_label} (${amount}, status {recon_status})
+- This is the {n}th consecutive month with {recon_status}
 - Decline reason on Stripe: {decline_reason or "n/a"}
 ```
 

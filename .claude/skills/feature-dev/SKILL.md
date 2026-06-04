@@ -1,6 +1,6 @@
 ---
 name: feature-dev
-description: Add a new feature to the recon app — engine logic, schema migration, edge function, or dashboard UI. Use when the user says "add a feature", "build {feature}", "I need a new view", "agregar feature", "implement {capability}", or any request that adds functionality crossing the engine, DB, or UI layers. Walks through ADR (if architectural) → schema migration → engine change → edge function → frontend → tests → docs in the right order with PR-ready commits.
+description: Add a new feature to the recon app — engine logic, schema migration, edge function, or dashboard UI. Use when the user says "add a feature", "build {feature}", "I need a new view", "agregar feature", "implement {capability}", "nueva migración", "agregar columna", "nuevo endpoint", "nueva tabla", or any request that adds functionality crossing the engine, DB, or UI layers. Walks through ADR (if architectural) → schema migration → engine change → edge function → frontend → tests → docs in the right order with PR-ready commits.
 ---
 
 # Feature Development
@@ -49,14 +49,17 @@ If the feature touches Python:
 
 1. Update `engine/reconciliation_engine/config.py` if new constants/columns are involved.
 2. Update the relevant module (`loaders.py`, `classifier.py`, `reconciler.py`, `reporter.py`) — keep the layered separation. Loaders don't classify; classifiers don't reconcile; reconcilers don't render.
-3. **Regression test**: re-run `historical_ingest` against existing data and diff `reconciliation_results`:
-   ```bash
-   sqlite3 reconciliation.db ".backup pre_change.db"
-   # ... make change, re-run ingest ...
-   sqlite3 reconciliation.db ".backup post_change.db"
-   # Diff
+3. **Regression test**: before the change, note the current counts for closed periods:
+   ```sql
+   SELECT period_label, COUNT(*) as results,
+          SUM(CASE WHEN recon_status='MATCH' THEN 1 ELSE 0 END) as matches
+   FROM reconciliation_results
+   WHERE period_label NOT IN (
+     SELECT period_label FROM periods WHERE is_closed = false
+   )
+   GROUP BY period_label;
    ```
-   For closed periods, **any change in MATCH count or total variance is a red flag**. Either it's a bug, or you've changed a forensic rule and the ADR should say so.
+   After the change, re-run the engine for a closed period and compare — any change in MATCH count or total variance is a red flag. Either it's a bug, or you've changed a forensic rule and the ADR should say so.
 
 ### Step 5 — Edge Function (Supabase)
 
@@ -72,6 +75,7 @@ Conventions:
 - Read secrets from environment, never hardcode.
 - Return JSON with `{ok: boolean, data?, error?}` shape.
 - Test with `supabase functions serve {name}` + curl before deploying.
+- Edge Functions calling Stripe must use the correct account key: `STRIPE_SECRET_KEY_MAIN` for main-account clients, `STRIPE_SECRET_KEY_LAUNCH` for Launch clients. Check `source_account` on `stripe_charges` to route correctly.
 
 ### Step 6 — Frontend
 
@@ -109,7 +113,7 @@ feat({area}): {short imperative}
 - UI: app/{path}
 
 Regression: closed-period reconciliation results unchanged
-(verified by historical_ingest re-run + diff).
+(verified by Supabase result count comparison pre/post change).
 ```
 
 ## Forensic guardrails

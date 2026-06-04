@@ -1,6 +1,6 @@
 ---
 name: exception-triage
-description: Triage open reconciliation exceptions. Use when the user says "revisar excepciones", "triage exceptions", "trabajar el queue", "what's outstanding", "who hasn't paid", "review exceptions", or wants to understand and act on the current exception queue. This skill prioritizes exceptions by amount and recurrence, looks up each client's history, and suggests next actions (resolve, escalate, draft outreach). Use BEFORE generating client emails or marking exceptions resolved.
+description: Triage open reconciliation exceptions. Use when the user says "revisar excepciones", "triage exceptions", "trabajar el queue", "what's outstanding", "who hasn't paid", "review exceptions", "excepciones abiertas", "pending exceptions", "qué hay pendiente", or wants to understand and act on the current exception queue. This skill prioritizes exceptions by amount and recurrence, looks up each client's history, and suggests next actions (resolve, escalate, draft outreach). Use BEFORE generating client emails or marking exceptions resolved.
 ---
 
 # Exception Triage
@@ -13,14 +13,14 @@ You are working the open exception queue. The owner cares most about: who owes m
 
 ```sql
 SELECT e.id, e.period_label, e.stripe_id, e.exception_type,
-       e.amount_at_risk, e.note, e.assigned_to, e.created_at,
-       r.account_names, r.expected_amount, r.collected_amount, r.variance,
-       r.paid_charge_count, r.hard_fail_count
+       e.note, e.created_at,
+       r.display_name, r.expected_amount, r.collected_amount, r.variance,
+       r.recon_status
 FROM exceptions e
 LEFT JOIN reconciliation_results r
   USING (period_label, stripe_id)
-WHERE e.status = 'open'
-ORDER BY e.amount_at_risk DESC NULLS LAST, e.created_at;
+WHERE e.resolution_status = 'open'
+ORDER BY ABS(r.variance) DESC NULLS LAST, e.created_at;
 ```
 
 If queue is empty, say so and stop.
@@ -30,7 +30,7 @@ If queue is empty, say so and stop.
 For each `stripe_id`, look up the last 6 months of reconciliation results:
 
 ```sql
-SELECT period_label, expected_amount, collected_amount, variance, status
+SELECT period_label, expected_amount, collected_amount, variance, recon_status
 FROM reconciliation_results
 WHERE stripe_id = '{cus_id}'
 ORDER BY period_label DESC LIMIT 6;
@@ -47,11 +47,11 @@ Classify the client into one of these patterns:
 For each exception, fetch the relevant Stripe charges:
 
 ```sql
-SELECT charge_id, status, classification, amount, amount_refunded,
-       paid_net, decline_reason, invoice_id, created_at
+SELECT charge_id, charge_status, amount, amount_refunded,
+       decline_reason, invoice_id, created_at_stripe
 FROM stripe_charges
 WHERE stripe_id = '{cus_id}' AND period_label = '{period}'
-ORDER BY created_at;
+ORDER BY created_at_stripe;
 ```
 
 This tells you whether the client tried and failed (insufficient funds, expired card, declined) vs no attempt at all vs partial payment.
@@ -61,10 +61,10 @@ This tells you whether the client tried and failed (insufficient funds, expired 
 For each, output:
 
 ```
-[{severity}] {stripe_id} — {account_names}
+[{severity}] {stripe_id} — {display_name}
   Status:     {exception_type}
   Period:     {period_label}
-  At risk:    ${amount_at_risk}
+  At risk:    ${variance}
   History:    {pattern} (last 6 months: MATCH x4, MISSING x2)
   Charges:    {n_paid} paid · {n_failed} failed ({decline_reason}) · {n_refunded} refunded
   Action:     {one of:}
@@ -74,6 +74,7 @@ For each, output:
                 - "Investigate billing rule — recurring underpayment suggests AR sheet has wrong Total to Bill"
                 - "Wait one cycle — Stripe will retry on {date}"
                 - "Mark as won't fix" (with reason)
+                - "Investigate whether client has a Stripe ID missing from the billing sheet; if confirmed, add to expected_charges via /admin/import and re-run engine" (for STRIPE_ONLY)
 ```
 
 ### Step 5 — Ask the user how to proceed
@@ -87,12 +88,12 @@ Don't take action without confirmation. Offer:
 
 | Severity | When |
 |---|---|
-| HIGH | Amount ≥ $1,000 OR recurring (same status 2+ months) OR client status = LOST |
+| HIGH | Amount >= $1,000 OR recurring (same status 2+ months) OR client status = LOST |
 | MEDIUM | Amount $100–$1,000, first occurrence |
 | LOW | Amount < $100 OR pending Stripe retry within 7 days |
 
 ## Forensic guardrails
 
-- Never close (`status = resolved`) an exception without a note explaining the resolution.
+- Never close (`resolution_status = resolved`) an exception without a note explaining the resolution.
 - Never mark MATCH after the fact — the underlying numbers don't change just because the issue was understood. Keep the exception, mark resolved with the explanation.
 - If a client is in `account_status = LOST`, surface that prominently — collection effort priority is different (and may be moot).
