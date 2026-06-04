@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { BillingPageClient } from "./_components/BillingPageClient";
+import { BillingPageClient, type ExpectedChargeRow } from "./_components/BillingPageClient";
 
 interface Props {
   searchParams: Promise<{ period?: string }>;
@@ -36,7 +36,7 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <BillingPageClient
-      rows={rows ?? []}
+      rows={(rows ?? []) as ExpectedChargeRow[]}
       periods={periods}
       selectedPeriod={selectedPeriod}
       isClosed={isClosed}
