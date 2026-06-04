@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 
 export type EnrichedCharge = {
   charge_id: string;
@@ -37,6 +37,84 @@ function StatusBadge({ status }: { status: EnrichedCharge["status"] }) {
   );
 }
 
+function BatchMultiSelect({
+  batches,
+  selected,
+  onChange,
+}: {
+  batches: string[];
+  selected: Set<string>;
+  onChange: (s: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  function toggle(batch: string) {
+    const next = new Set(selected);
+    if (next.has(batch)) next.delete(batch); else next.add(batch);
+    onChange(next);
+  }
+
+  const label =
+    selected.size === 0 ? "All batches" :
+    selected.size === 1 ? `Batch ${[...selected][0]}` :
+    `${selected.size} batches selected`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-[2px] bg-white focus:outline-none transition-colors whitespace-nowrap",
+          open || selected.size > 0
+            ? "border-[#0170B9] text-[#0170B9]"
+            : "border-[#dddddd] text-[#3a3a3a] hover:border-[#0170B9]"
+        )}
+      >
+        {label}
+        <ChevronDown size={13} className={cn("transition-transform duration-150", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[160px] bg-white border border-[#dddddd] rounded-[2px] shadow-lg py-1">
+          <button
+            onClick={() => onChange(new Set())}
+            className={cn(
+              "w-full text-left px-3 py-1.5 text-sm transition-colors hover:bg-[#f5f5f5]",
+              selected.size === 0 ? "font-semibold text-[#0170B9]" : "text-[#4B4F58]"
+            )}
+          >
+            All batches
+          </button>
+          <div className="border-t border-[#eeeeee] my-1" />
+          {batches.map((b) => (
+            <label
+              key={b}
+              className="flex items-center gap-2.5 px-3 py-1.5 text-sm hover:bg-[#f5f5f5] cursor-pointer transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(b)}
+                onChange={() => toggle(b)}
+                className="accent-[#0170B9] w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="text-[#3a3a3a]">{/^\d+$/.test(b) ? `Batch ${b}` : b}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StripeTransactionsClient({
   charges,
   periods,
@@ -46,7 +124,7 @@ export default function StripeTransactionsClient({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [batchFilter, setBatchFilter] = useState("all");
+  const [selectedBatches, setSelectedBatches] = useState<Set<string>>(new Set());
   const [periodFilter, setPeriodFilter] = useState("all");
 
   const batches = useMemo(
@@ -59,7 +137,7 @@ export default function StripeTransactionsClient({
       charges.filter((c) => {
         if (periodFilter !== "all" && c.period_label !== periodFilter) return false;
         if (statusFilter !== "all" && c.status !== statusFilter) return false;
-        if (batchFilter !== "all" && c.batch !== batchFilter) return false;
+        if (selectedBatches.size > 0 && !selectedBatches.has(c.batch)) return false;
         if (search) {
           const q = search.toLowerCase();
           if (
@@ -72,7 +150,7 @@ export default function StripeTransactionsClient({
         }
         return true;
       }),
-    [charges, periodFilter, statusFilter, batchFilter, search]
+    [charges, periodFilter, statusFilter, selectedBatches, search]
   );
 
   const paidTotal = filtered
@@ -142,16 +220,11 @@ export default function StripeTransactionsClient({
           <option value="Failed">Failed</option>
           <option value="Refunded">Refunded</option>
         </select>
-        <select
-          value={batchFilter}
-          onChange={(e) => setBatchFilter(e.target.value)}
-          className="px-3 py-1.5 text-sm border border-[#dddddd] rounded-[2px] focus:outline-none focus:border-[#0170B9] bg-white"
-        >
-          <option value="all">All batches</option>
-          {batches.map((b) => (
-            <option key={b} value={b}>{b}</option>
-          ))}
-        </select>
+        <BatchMultiSelect
+          batches={batches}
+          selected={selectedBatches}
+          onChange={setSelectedBatches}
+        />
       </div>
 
       {/* Table */}
