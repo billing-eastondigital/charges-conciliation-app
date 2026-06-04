@@ -331,7 +331,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                     <td className="px-1 py-1 border-x border-[#eeeeee] text-center w-8">
                       {saving && <div className="w-3 h-3 border-2 border-[#0170B9] border-t-transparent rounded-full animate-spin mx-auto" />}
                       {saved  && <CheckCircle2 size={12} className="text-green-600 mx-auto" />}
-                      {err    && <AlertCircle  size={12} className="text-red-500 mx-auto" title={err} />}
+                      {err    && <AlertCircle  size={12} className="text-red-500 mx-auto" aria-label={err} />}
                     </td>
                   </tr>
                 );
