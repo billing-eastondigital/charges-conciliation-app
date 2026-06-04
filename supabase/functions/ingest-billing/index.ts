@@ -110,13 +110,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Delete existing rows for this period (idempotent import)
-    const { error: deleteError } = await supabase
-      .from("expected_charges")
-      .delete()
-      .eq("period_label", period_label);
+    // Determine which batches are present in the upload
+    const uploadedBatches = [...new Set(rows.map((r) => r.batch).filter((b) => b != null))] as string[];
+    const hasNullBatch = rows.some((r) => r.batch == null);
 
-    if (deleteError) throw deleteError;
+    if (uploadedBatches.length > 0 && !hasNullBatch) {
+      // Batch-scoped delete: only wipe rows belonging to the batches in this upload
+      // Rows from other batches are preserved, so uploads can be done batch by batch
+      const { error: deleteError } = await supabase
+        .from("expected_charges")
+        .delete()
+        .eq("period_label", period_label)
+        .in("batch", uploadedBatches);
+      if (deleteError) throw deleteError;
+    } else {
+      // Full period wipe: upload contains null-batch rows or mixed content
+      const { error: deleteError } = await supabase
+        .from("expected_charges")
+        .delete()
+        .eq("period_label", period_label);
+      if (deleteError) throw deleteError;
+    }
 
     // Insert new rows
     const inserts = rows.map((r) => ({
@@ -147,6 +161,7 @@ Deno.serve(async (req) => {
         period_label,
         inserted: inserts.length,
         new_clients: newClientCount,
+        batches: uploadedBatches.length > 0 ? uploadedBatches : null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
