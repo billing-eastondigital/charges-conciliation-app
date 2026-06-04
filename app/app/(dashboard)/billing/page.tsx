@@ -44,6 +44,7 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <BillingPageClient
+      key={selectedPeriod}
       rows={(rows ?? []) as unknown as ExpectedChargeRow[]}
       periods={periods}
       selectedPeriod={selectedPeriod}
