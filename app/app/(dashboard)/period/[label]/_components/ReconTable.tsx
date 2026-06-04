@@ -114,7 +114,7 @@ function DataRows({ rows, prevCollectedMap }: {
   prevCollectedMap?: Map<string, number>;
 }) {
   const sorted = [...rows].sort(
-    (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+    (a, b) => a.display_name.localeCompare(b.display_name)
   );
   return (
     <>
@@ -220,7 +220,7 @@ export function ReconTable({ results, prevCollectedMap }: ReconTableProps) {
   const [statusFilter, setStatusFilter] = useState<ReconciliationStatus | "ALL">("ALL");
   const [batchFilter, setBatchFilter] = useState<BatchLabel | "ALL">("ALL");
   const [search, setSearch]           = useState("");
-  const [groupByBatch, setGroupByBatch] = useState(false);
+  const [groupByBatch, setGroupByBatch] = useState(true);
 
   // unique batches present in data, in order
   const availableBatches = useMemo(
