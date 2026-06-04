@@ -90,6 +90,7 @@ export default async function PeriodPage({ params }: Props) {
 
   // ── MoM bridge computed from stripe_charges ──────────────────────────────
   let bridge: MoMBridgeData | null = null;
+  let prevCollectedMap: Map<string, number> | undefined;
 
   if (period) {
     const sortedPeriods = [...allPeriods].sort((a, b) => a.start_date.localeCompare(b.start_date));
@@ -117,6 +118,9 @@ export default async function PeriodPage({ params }: Props) {
         const collected = parseFloat(String(r.collected_amount ?? 0));
         if (collected > 0) prevMap.set(key, collected);
       }
+
+      // Expose prior-period collected amounts to the reconciliation table
+      prevCollectedMap = prevMap;
 
       // Name lookup: currMap already carries display_name in the .email field
       const clientNameMap = new Map([...currMap.entries()].map(([k, v]) => [k, v.email]));
@@ -215,7 +219,7 @@ export default async function PeriodPage({ params }: Props) {
             <h2 className="text-sm font-semibold text-[#3a3a3a] mb-3 uppercase tracking-wide">
               Reconciliation Detail
             </h2>
-            <ReconTable results={results} />
+            <ReconTable results={results} prevCollectedMap={prevCollectedMap} />
           </div>
         </>
       )}
