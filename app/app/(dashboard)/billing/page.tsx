@@ -36,7 +36,7 @@ export default async function BillingPage({ searchParams }: Props) {
 
   return (
     <BillingPageClient
-      rows={(rows ?? []) as ExpectedChargeRow[]}
+      rows={(rows ?? []) as unknown as ExpectedChargeRow[]}
       periods={periods}
       selectedPeriod={selectedPeriod}
       isClosed={isClosed}
