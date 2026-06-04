@@ -99,8 +99,8 @@ export default async function PeriodPage({ params }: Props) {
     if (prevPeriod) {
       // Fetch Paid stripe charges for current + previous period
       const [{ data: currCharges }, { data: prevCharges }] = await Promise.all([
-        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", periodLabel).eq("raw_stripe_status", "Paid"),
-        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", prevPeriod.period_label).eq("raw_stripe_status", "Paid"),
+        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", periodLabel).eq("charge_status", "PAID_NET"),
+        supabase.from("stripe_charges").select("stripe_id, amount, customer_email").eq("period_label", prevPeriod.period_label).eq("charge_status", "PAID_NET"),
       ]);
 
       // Build stripe_id → collected maps
