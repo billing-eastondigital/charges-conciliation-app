@@ -76,6 +76,40 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Auto-create placeholder clients for any stripe_id not yet in the clients table
+    // (prevents FK violation on expected_charges.stripe_id → clients.stripe_id)
+    const uniqueStripeIds = [...new Set(rows.map((r) => r.stripe_id).filter(Boolean))] as string[];
+    let newClientCount = 0;
+    if (uniqueStripeIds.length > 0) {
+      const { data: existingClients } = await supabase
+        .from("clients")
+        .select("stripe_id")
+        .in("stripe_id", uniqueStripeIds);
+
+      const knownIds = new Set((existingClients ?? []).map((c) => c.stripe_id));
+      const unknownIds = uniqueStripeIds.filter((id) => !knownIds.has(id));
+      newClientCount = unknownIds.length;
+
+      if (unknownIds.length > 0) {
+        const emailByStripeId = new Map<string, string>();
+        for (const r of rows) {
+          if (r.stripe_id && r.primary_email) emailByStripeId.set(r.stripe_id, r.primary_email);
+        }
+
+        const placeholders = unknownIds.map((id) => ({
+          stripe_id:     id,
+          display_name:  emailByStripeId.get(id) ?? id,
+          primary_email: emailByStripeId.get(id) ?? `unknown+${id}@placeholder.stripe`,
+        }));
+
+        const { error: clientErr } = await supabase
+          .from("clients")
+          .upsert(placeholders, { onConflict: "stripe_id", ignoreDuplicates: true });
+
+        if (clientErr) throw clientErr;
+      }
+    }
+
     // Delete existing rows for this period (idempotent import)
     const { error: deleteError } = await supabase
       .from("expected_charges")
@@ -112,6 +146,7 @@ Deno.serve(async (req) => {
         success: true,
         period_label,
         inserted: inserts.length,
+        new_clients: newClientCount,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
