@@ -105,6 +105,7 @@ Each skill in `.claude/skills/{name}/SKILL.md` defines a triggered, repeatable o
 | `feature-dev` | Add a feature to the engine, DB schema, or UI |
 | `data-quality` | Diagnose + fix issues in the master billing workbook |
 | `release` | Version bump + changelog + deploy |
+| `stripe-recon-gap` | Explain dollar-for-dollar why Stripe PAID_NET ≠ reconciliation collected total for a period |
 
 ---
 
