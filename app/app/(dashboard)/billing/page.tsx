@@ -16,11 +16,19 @@ export default async function BillingPage({ searchParams }: Props) {
 
   const periods = periodsRows ?? [];
 
-  // Default to first open period, then most recent
-  const defaultPeriod =
-    periods.find((p) => !p.is_closed)?.period_label ??
-    periods[0]?.period_label ??
-    "";
+  // Default to most recent open period that has billing rows (skips auto-created empty periods)
+  let defaultPeriod = periods[0]?.period_label ?? "";
+  if (!period) {
+    const { data: billedRows } = await supabase
+      .from("expected_charges")
+      .select("period_label");
+    const periodsWithBilling = new Set((billedRows ?? []).map((r) => r.period_label));
+    defaultPeriod =
+      periods.find((p) => !p.is_closed && periodsWithBilling.has(p.period_label))?.period_label ??
+      periods.find((p) => !p.is_closed)?.period_label ??
+      periods[0]?.period_label ??
+      "";
+  }
   const selectedPeriod = period ?? defaultPeriod;
   const isClosed = periods.find((p) => p.period_label === selectedPeriod)?.is_closed ?? false;
 
