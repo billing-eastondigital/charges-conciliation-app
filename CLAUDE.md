@@ -45,15 +45,61 @@ These are the forensic invariants. Breaking them silently corrupts the audit tra
 5. **Period attribution = `charge.created_at` within `[period.start_date, period.end_date]`.** Stripe API ingest is live (`ingest-stripe` Edge Function). Main account uses EST timezone offset (+5h UTC window). Switch to `invoice.period_start` is a future improvement (see `docs/decisions/0004-period-attribution.md`).
 6. **Source files must be hashed.** Every reconciliation run records SHA-256 of the inputs in `Run_Metadata` (Excel) or `reconciliation_runs` (DB). A report must always be reproducible from inputs.
 7. **`cus_id` is the join key, NOT a unique key for billing.** The same `cus_id` legitimately maps to multiple Account Names (one client paying for multiple domains). See `docs/decisions/0001-cus-id-merge-strategy.md`.
-8. **Client lifecycle classification rules (New / Churned):**
-   - **New client** — meets either condition:
-     a. Appears in Stripe transactions for the first time with no prior reconciliation history (detected via `clients.start_date` within `[period.start_date, period.end_date]`).
-     b. Added to the client DB with expected revenue in this period (`clients.start_date` within the period range).
-     Note: a client can appear in Stripe before they're formally added to the DB (e.g. a one-time setup payment). When this happens they surface as `STRIPE_ONLY` in reconciliation AND as a new client in the lifecycle section. Both are correct and expected.
-   - **Churned client** — meets either condition:
-     a. Explicitly marked `account_status = 'LOST'` in the client DB with `deactivated_month` matching the current period's month key (`YYYY-MM`).
-     b. After a period closes: client had `MISSING_PAYMENT` in the prior period AND has no expected revenue row in the current period (hard churn — determined post-close, not in real-time).
+8. **Client lifecycle classification rules (New / Churned) — canonical definition, same on every page:**
+   - **New client** — `clients.start_date` falls within `[period.start_date, period.end_date]`. This covers two cases:
+     a. Client manually added to the DB with a `start_date` in the period.
+     b. First-time Stripe customer auto-created by `ingest-stripe` — the edge function sets `start_date` to the date of the customer's first charge.
+   - **Lost/Churned client** — `clients.account_status = 'LOST'` **AND** `clients.deactivated_month = YYYY-MM` of the period. Manual signal only — never auto-detected from payment history.
    - **Never auto-resolve churn** — a LOST client who made a payment in their final month still appears in both the Churned list AND reconciles as MATCH (see simplyinspiredgoods.com, April 2026). The lifecycle signal and the payment outcome are independent.
+   - **Enforcement** — the Period page (ClientLifecycleSection + MoMDelta bridge), the Clients / Won & Churned tab, and any future pages all use these two DB-field conditions. Do not reintroduce reconciliation-diff–based new/churned detection.
+
+---
+
+## 3b. Automated pipeline (live as of 2026-06-05)
+
+The daily cron (`sync-stripe-daily`, 08:00 UTC) triggers `ingest-stripe`, which now runs the full pipeline end-to-end without any manual steps:
+
+```
+pg_cron 08:00 UTC
+  → ingest-stripe edge function
+      1. Sync Stripe charges (main + launch accounts) → stripe_charges
+      2. Settlement catch-up: re-sync previous open period if pending ACH charges exist
+      3. Auto-call reconcile-period for the current period
+      4. Auto-call reconcile-period for the previous period (if catch-up ran)
+```
+
+`reconcile-period` also runs the following before reconciling:
+- Queries `client_active_plans` for all `billing_method = 'SUBSCRIPTION'` clients
+- Inserts missing `expected_charges` rows for the period using `projection_amount`
+- Then runs normal reconciliation
+
+This means subscription clients flow through the period, annual, audit, and exception pages automatically — no billing xlsx upload needed each month.
+
+**Response shape from `ingest-stripe`:**
+```json
+{
+  "ok": true,
+  "period_label": "June 2026",
+  "total_inserted": 45,
+  "accounts": { "main": { "inserted": 41 }, "launch": { "inserted": 4 } },
+  "auto_reconcile": {
+    "current": { "ok": true, "run_id": 15, "counts": { "MATCH": 38, ... } },
+    "catchup": null
+  }
+}
+```
+
+If no billing sheet has been uploaded, `auto_reconcile.current` = `{ ok: false, skipped: true }` — the sync still succeeds.
+
+### Billing method (`client_billing_plans.billing_method`)
+
+| Value | Meaning |
+|---|---|
+| `AD_SPEND` (default) | Expected charge comes from the billing xlsx uploaded via `/admin/import` each month |
+| `SUBSCRIPTION` | Flat fee auto-generated from `projection_amount` at reconcile time — no monthly import needed |
+
+Set via Admin → Plan Management → Edit or Set up plan → Billing Method.
+Back-fill rule: clients with `batch = 'SUBSCRIPTION'` were automatically set to `billing_method = 'SUBSCRIPTION'` in migration `20260605000001`.
 
 ---
 

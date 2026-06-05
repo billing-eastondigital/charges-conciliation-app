@@ -5,15 +5,23 @@ Forensic Stripe ↔ Accounts Receivable reconciliation system. Tells you who pai
 ## Architecture
 
 ```
-Stripe API ──── Edge Fn + cron ──────────────────→ stripe_charges
-Billing xlsx ── /admin/import (upload UI) ────────→ expected_charges
-                                                         ↓
-                                          Python CLI reconciliation engine
-                                                         ↓
-                                        reconciliation_results + exceptions
-                                                         ↓
-                                              Next.js dashboard
+pg_cron 08:00 UTC
+  └─→ ingest-stripe (Edge Fn)
+        ├── sync stripe_charges (main + launch Stripe accounts)
+        ├── settlement catch-up (re-sync prior period if ACH pending)
+        └── auto-call reconcile-period ──────────────────────────────────┐
+                                                                         │
+Billing xlsx ── /admin/import (upload) ──→ expected_charges              │
+Subscription plans ── auto-generated ────→ expected_charges ────────────┘
+                                                    ↓
+                                         reconcile-period (Edge Fn)
+                                                    ↓
+                                   reconciliation_results + exceptions
+                                                    ↓
+                                          Next.js dashboard
 ```
+
+The full pipeline runs automatically every morning. Manual triggers are still available via `/admin/import` (billing sheet upload) and the Reconcile button.
 
 ## Stack
 
@@ -61,14 +69,17 @@ python -m reconciliation_engine.cli \
 
 | Layer | Status |
 |---|---|
-| Supabase schema (9 migrations) | Applied |
-| Seed data (April 2026, 62 clients) | Loaded |
+| Supabase schema (16 migrations) | Applied |
+| Seed data (68+ clients, Jan–May 2026) | Loaded |
 | Next.js dashboard | All pages live — Supabase wired |
-| /admin/import (xlsx upload) | Built |
-| Python reconciliation engine | Built (DB-driven) |
-| Stripe API auto-pull (Edge Fn + cron) | Pending |
-| Historical ingest (Jan–Mar 2026) | Pending |
-| Exception resolution UI | Pending |
+| `/admin/import` (xlsx upload) | Live |
+| Python reconciliation engine | Live (DB-driven, no Pandas) |
+| `ingest-stripe` Edge Fn + daily cron | Live — main account; Launch key pending |
+| `reconcile-period` Edge Fn (auto-triggered) | Live |
+| Subscription auto-generation | Live (from `billing_method = SUBSCRIPTION`) |
+| Historical ingest (Jan–Apr 2026) | Complete |
+| Exception resolution UI | Live |
+| Launch Stripe account API key | **Pending** — configure `STRIPE_SECRET_KEY_LAUNCH` secret |
 
 ## Agent skills
 
@@ -102,9 +113,9 @@ The agency operates **two Stripe accounts**:
 | Main account | Charge IDs contain `Bz2r3aRl9` | Most clients (batches 1–5, Consulting, Multiple) |
 | Launch account | Charge IDs contain `JNvCoIloog` | Subscription clients billed via the Launch account (beehivehandmade, sugarbeeclothing, jewelrybybretta, threearrowsnutra, gr8beads, camoeverafter) |
 
-When exporting from Stripe for ingestion, **both accounts must be exported separately** and loaded together. The Launch account export is typically a single file covering multiple months (e.g. `LAUNCH-jan-april-26.csv`). Period attribution for the Launch file uses the UTC month from `Created date (UTC)`.
+The `ingest-stripe` Edge Function pulls from both accounts automatically when both secrets are configured. `STRIPE_SECRET_KEY_MAIN` is live; `STRIPE_SECRET_KEY_LAUNCH` is still pending — until it is set, Launch account charges must be loaded via CSV upload.
 
-> When the Stripe API auto-pull Edge Function is built (Phase 4), it must pull from both account API keys and merge the results before writing to `stripe_charges`.
+Period attribution: Main account charges are in EST (UTC-5) — the ingestion window is shifted +5 hours. Launch account charges use UTC as-is.
 
 ## Key business rules
 
@@ -114,5 +125,9 @@ When exporting from Stripe for ingestion, **both accounts must be exported separ
 4. `Refunded` and `Failed` rows are never filtered — they surface as exceptions
 5. Period attribution = `charge.created_at` within `[period.start_date, period.end_date]`
 6. Every run hashes its source files (SHA-256) for reproducibility
+7. **New client** — `clients.start_date` within the period (manual add or first Stripe charge)
+8. **Lost/Churned client** — `account_status = 'LOST'` AND `deactivated_month = YYYY-MM` (manual only)
+9. **Subscription clients** — expected charge auto-generated from `projection_amount` each period; no xlsx import needed
+10. A LOST client who paid in their final month is both Churned (lifecycle) AND MATCH (reconciliation) — these signals are independent
 
 See `CLAUDE.md` §3 for the full invariant list.
