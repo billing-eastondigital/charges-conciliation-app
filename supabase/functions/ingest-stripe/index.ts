@@ -382,7 +382,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, period_label: resolvedLabel, total_inserted: totalInserted, accounts: summary, settlement_catchup: settlementResult }, 200);
+    // ── Auto-reconcile ─────────────────────────────────────────────────────────
+    // After every successful sync, run reconciliation so the dashboard stays
+    // current without requiring a manual trigger. If billing data hasn't been
+    // uploaded yet the reconcile call returns 400 and we surface it as
+    // "skipped" — the sync itself is still considered successful.
+    const autoReconcileResult  = await callReconcile(resolvedLabel);
+    const autoReconcileCatchup = settlementResult
+      ? await callReconcile((settlementResult as { period_label: string }).period_label)
+      : null;
+
+    return json({
+      ok: true,
+      period_label:   resolvedLabel,
+      total_inserted: totalInserted,
+      accounts:       summary,
+      settlement_catchup: settlementResult,
+      auto_reconcile: {
+        current:  autoReconcileResult,
+        catchup:  autoReconcileCatchup,
+      },
+    }, 200);
   } catch (err) {
     let message: string;
     if (err instanceof Error) {
@@ -395,6 +415,55 @@ Deno.serve(async (req) => {
     return json({ error: message }, 500);
   }
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Call reconcile-period for the given label.
+ * Returns a summary object — never throws, so a reconcile failure doesn't
+ * roll back a successful Stripe sync.
+ */
+async function callReconcile(
+  periodLabel: string,
+): Promise<{ ok: boolean; skipped?: boolean; reason?: string; run_id?: number; counts?: Record<string, number> }> {
+  const supabaseUrl     = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { ok: false, skipped: true, reason: "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not available" };
+  }
+
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/reconcile-period`, {
+      method:  "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ period_label: periodLabel }),
+    });
+
+    const body = await res.json() as Record<string, unknown>;
+
+    if (!res.ok) {
+      // 400 = no billing data yet — expected, not an error worth surfacing as failure
+      const skipped = res.status === 400;
+      return {
+        ok:      false,
+        skipped,
+        reason:  (body.error as string | undefined) ?? `HTTP ${res.status}`,
+      };
+    }
+
+    return {
+      ok:     true,
+      run_id: body.run_id as number | undefined,
+      counts: body.counts as Record<string, number> | undefined,
+    };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
