@@ -128,10 +128,19 @@ export default async function PeriodPage({ params }: Props) {
       const priorCollected   = [...prevMap.values()].reduce((s, v) => s + v, 0);
       const currentCollected = [...currMap.values()].reduce((s, v) => s + v.collected, 0);
 
-      const newClientKeys     = [...currMap.keys()].filter((k) => !prevMap.has(k));
-      const churnedClientKeys = [...prevMap.keys()].filter((k) => !currMap.has(k));
-      const retainedKeys      = [...currMap.keys()].filter((k) => prevMap.has(k));
+      // Use the same DB-field definitions as ClientLifecycleSection and the
+      // Clients / Won & Churned tab so all pages agree on who is new vs churned.
+      //   New     = clients.start_date falls within this period
+      //   Churned = clients.account_status = 'LOST' AND deactivated_month = period month
+      const newClientSet     = new Set(newClients.map((c) => c.stripe_id).filter(Boolean) as string[]);
+      const churnedClientSet = new Set(churnedClients.map((c) => c.stripe_id).filter(Boolean) as string[]);
 
+      const newClientKeys     = [...currMap.keys()].filter((k) => newClientSet.has(k));
+      const churnedClientKeys = [...churnedClientSet];          // use DB list, not currMap/prevMap diff
+      const retainedKeys      = [...currMap.keys()].filter((k) => !newClientSet.has(k) && !churnedClientSet.has(k));
+
+      // New revenue  = what new clients brought in this period
+      // Churned loss = what churned clients brought in the PRIOR period (recurring revenue gone)
       const newClientsRevenue   = newClientKeys.reduce((s, k) => s + (currMap.get(k)?.collected ?? 0), 0);
       const churnedRevenueLost  = churnedClientKeys.reduce((s, k) => s + (prevMap.get(k) ?? 0), 0);
 
@@ -162,10 +171,13 @@ export default async function PeriodPage({ params }: Props) {
         delta:              currentCollected - priorCollected,
         new_clients_revenue: newClientsRevenue,
         new_client_count:    newClientKeys.length,
-        new_clients: newClientKeys.slice(0, 5).map((k) => ({
-          name:   clientNameMap.get(k) ?? currMap.get(k)?.email ?? k,
-          amount: currMap.get(k)?.collected ?? 0,
-        })),
+        new_clients: newClientKeys.slice(0, 5).map((k) => {
+          const meta = newClients.find((c) => c.stripe_id === k);
+          return {
+            name:   clientNameMap.get(k) ?? currMap.get(k)?.email ?? meta?.display_name ?? k,
+            amount: currMap.get(k)?.collected ?? 0,
+          };
+        }),
         churned_revenue_lost:  churnedRevenueLost,
         churned_client_count:  churnedClientKeys.length,
         retained_delta:        retainedDelta,

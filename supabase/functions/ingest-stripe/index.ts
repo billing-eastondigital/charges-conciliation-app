@@ -251,12 +251,23 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Find the earliest charge date per unknown customer so that the
+          // "new client" lifecycle signal fires correctly on the period page.
+          const firstChargeDateByCustomer = new Map<string, string>();
+          for (const c of charges) {
+            if (!c.customer || !unknownIds.includes(c.customer)) continue;
+            const dateStr = new Date(c.created * 1000).toISOString().split("T")[0];
+            const existing = firstChargeDateByCustomer.get(c.customer);
+            if (!existing || dateStr < existing) firstChargeDateByCustomer.set(c.customer, dateStr);
+          }
+
           const placeholders = unknownIds.map((id) => {
             const email = emailByCustomer.get(id) ?? `unknown+${id}@placeholder.stripe`;
             return {
               stripe_id:    id,
               display_name: emailByCustomer.get(id) ?? id,
               primary_email: email,
+              start_date:   firstChargeDateByCustomer.get(id) ?? null,
               // account_status, batch, accounts, is_active all use DB defaults
             };
           });
