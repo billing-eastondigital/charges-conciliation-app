@@ -42,6 +42,7 @@ function plan(
   return {
     billing_plan,
     billing_details,
+    billing_method: "AD_SPEND" as const,
     billing_pct,
     billing_day,
     notes,

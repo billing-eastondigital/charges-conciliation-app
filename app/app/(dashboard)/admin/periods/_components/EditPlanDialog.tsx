@@ -4,10 +4,28 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { ClientBillingPlan, ClientRecord, ProjectionType } from "@/lib/types";
+import type { BillingMethod, ClientBillingPlan, ClientRecord, ProjectionType } from "@/lib/types";
+
+const TODAY = new Date().toISOString().split("T")[0];
+
+const DEFAULT_PLAN: ClientBillingPlan = {
+  billing_plan:      "",
+  billing_details:   null,
+  billing_method:    "AD_SPEND",
+  billing_pct:       0,
+  billing_day:       1,
+  notes:             null,
+  projection_type:   "FIXED",
+  projection_amount: null,
+  manual_overrides:  {},
+  effective_from:    TODAY,
+  effective_to:      null,
+};
 
 interface Props {
   client: ClientRecord;
+  /** When true, creates a new plan instead of editing the current one. */
+  isNew?: boolean;
   saving?: boolean;
   onSave: (plan: ClientBillingPlan) => void;
   onClose: () => void;
@@ -24,12 +42,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
-  const current =
+export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props) {
+  const current = isNew ? null : (
     client.billing_plans.find((p) => p.effective_to === null) ??
-    client.billing_plans[client.billing_plans.length - 1];
+    client.billing_plans[client.billing_plans.length - 1] ??
+    null
+  );
 
-  const [form, setForm] = useState<ClientBillingPlan>({ ...current });
+  const [form, setForm] = useState<ClientBillingPlan>(current ? { ...current } : { ...DEFAULT_PLAN });
 
   const update = (patch: Partial<ClientBillingPlan>) =>
     setForm((f) => ({ ...f, ...patch }));
@@ -38,7 +58,7 @@ export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit Billing Plan</DialogTitle>
+          <DialogTitle>{isNew ? "Set Up Billing Plan" : "Edit Billing Plan"}</DialogTitle>
           <p className="text-sm text-[#6b7280]">{client.display_name}</p>
         </DialogHeader>
 
@@ -51,6 +71,21 @@ export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
             />
           </Field>
 
+          <Field label="Billing method">
+            <Select
+              value={form.billing_method}
+              onValueChange={(v) => update({ billing_method: v as BillingMethod })}
+            >
+              <SelectTrigger className="h-8 text-sm rounded-sm border-[#dddddd]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="AD_SPEND">Ad Spend — imported from billing sheet</SelectItem>
+                <SelectItem value="SUBSCRIPTION">Subscription — auto-generated each period</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
           <Field label="Billing details">
             <textarea
               className={`${inputClass} h-20 resize-none`}
@@ -60,6 +95,17 @@ export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
+            {isNew && (
+              <Field label="Effective from">
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={form.effective_from}
+                  onChange={(e) => update({ effective_from: e.target.value })}
+                />
+              </Field>
+            )}
+
             <Field label="Projection type">
               <Select
                 value={form.projection_type}
@@ -134,7 +180,7 @@ export function EditPlanDialog({ client, saving, onSave, onClose }: Props) {
             disabled={!form.billing_plan.trim() || saving}
             className="bg-[#0170B9] hover:bg-[#015fa0] text-white rounded-sm"
           >
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? "Saving…" : isNew ? "Add plan" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>

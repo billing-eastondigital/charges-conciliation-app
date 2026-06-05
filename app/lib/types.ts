@@ -14,6 +14,8 @@ export type ReconciliationStatus =
 
 export type AccountStatus = "ACTIVE" | "LOST" | "INACTIVE";
 
+export type BillingMethod = "AD_SPEND" | "SUBSCRIPTION";
+
 export type ExceptionStatus = "OPEN" | "RESOLVED" | "WONT_FIX";
 
 // ------------------------------------------------------------
@@ -54,6 +56,8 @@ export interface Client {
 export interface ClientBillingPlan {
   billing_plan: string;            // e.g. "Google Shopping Starter Plan"
   billing_details: string | null;  // full pricing description
+  /** How the expected charge is produced each period */
+  billing_method: BillingMethod;
   billing_pct: number;             // % of ad revenue on top of base fee (0 = flat only)
   billing_day: number | null;      // day of month for invoicing (1–31)
   notes: string | null;

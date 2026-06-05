@@ -120,6 +120,7 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
         return {
           billing_plan:       String(plan.billing_plan ?? ""),
           billing_details:    plan.billing_details ? String(plan.billing_details) : null,
+          billing_method:     (String(plan.billing_method ?? "AD_SPEND")) as ClientBillingPlan["billing_method"],
           billing_pct:        Number(plan.billing_pct ?? 0),
           billing_day:        plan.billing_day ? Number(plan.billing_day) : null,
           notes:              plan.notes ? String(plan.notes) : null,

@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { PlanManagerTable } from "./_components/PlanManagerTable";
-import { updatePlan, changePlan } from "./actions";
+import { addPlan, updatePlan, changePlan } from "./actions";
 import type { ClientRecord } from "@/lib/types";
 
 export default async function AdminPeriodsPage() {
@@ -27,13 +27,15 @@ export default async function AdminPeriodsPage() {
       .sort((a: { effective_from: string }, b: { effective_from: string }) =>
         a.effective_from.localeCompare(b.effective_from))
       .map((p: {
-        billing_plan: string; billing_details: string | null; billing_pct: number;
-        billing_day: number | null; notes: string | null; projection_type: string;
-        projection_amount: number | null; manual_overrides: Record<string, number>;
+        billing_plan: string; billing_details: string | null; billing_method: string | null;
+        billing_pct: number; billing_day: number | null; notes: string | null;
+        projection_type: string; projection_amount: number | null;
+        manual_overrides: Record<string, number>;
         effective_from: string; effective_to: string | null;
       }) => ({
         billing_plan:      p.billing_plan,
         billing_details:   p.billing_details ?? null,
+        billing_method:    (p.billing_method ?? "AD_SPEND") as ClientRecord["billing_plans"][number]["billing_method"],
         billing_pct:       p.billing_pct,
         billing_day:       p.billing_day ?? null,
         notes:             p.notes ?? null,
@@ -55,6 +57,7 @@ export default async function AdminPeriodsPage() {
       </div>
       <PlanManagerTable
         initialClients={clients}
+        addPlan={addPlan}
         updatePlan={updatePlan}
         changePlan={changePlan}
       />

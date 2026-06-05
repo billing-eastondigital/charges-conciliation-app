@@ -235,12 +235,58 @@ Deno.serve(async (req) => {
     // Validate period
     const { data: period } = await supabase
       .from("periods")
-      .select("period_label, is_closed")
+      .select("period_label, is_closed, start_date, end_date")
       .eq("period_label", period_label)
       .single();
 
     if (!period)          return json({ error: `Period "${period_label}" not found` }, 404);
     if (period.is_closed) return json({ error: `Period "${period_label}" is closed` }, 409);
+
+    // ── Auto-generate expected_charges for SUBSCRIPTION clients ──────────────
+    // Uses client_active_plans view (plans active as of today). Any subscription
+    // client whose plan is currently active will get an expected_charge row
+    // inserted if one doesn't already exist for this period.
+    {
+      const { data: subClients } = await supabase
+        .from("client_active_plans")
+        .select("stripe_id, display_name, primary_email, batch, projection_amount, billing_plan, billing_pct")
+        .eq("billing_method", "SUBSCRIPTION")
+        .not("stripe_id", "is", null);
+
+      if (subClients && subClients.length > 0) {
+        const subStripeIds = subClients.map((c) => c.stripe_id as string);
+
+        const { data: existing } = await supabase
+          .from("expected_charges")
+          .select("stripe_id")
+          .eq("period_label", period_label)
+          .in("stripe_id", subStripeIds);
+
+        const alreadyHasCharge = new Set((existing ?? []).map((r) => r.stripe_id as string));
+
+        const toInsert = subClients
+          .filter((c) => !alreadyHasCharge.has(c.stripe_id as string))
+          .map((c) => ({
+            period_label,
+            stripe_id:       c.stripe_id,
+            account_name:    c.display_name,
+            primary_email:   c.primary_email,
+            batch:           c.batch,
+            expected_amount: c.projection_amount != null
+              ? Number(c.projection_amount).toFixed(4)
+              : "0.0000",
+            billing_plan: c.billing_plan,
+            billing_pct:  c.billing_pct,
+          }));
+
+        if (toInsert.length > 0) {
+          const { error: autoInsertErr } = await supabase
+            .from("expected_charges")
+            .insert(toInsert);
+          if (autoInsertErr) throw autoInsertErr;
+        }
+      }
+    }
 
     // Load all data in parallel
     const [{ data: arRows }, { data: chargeRows }, { data: clientRows }] = await Promise.all([

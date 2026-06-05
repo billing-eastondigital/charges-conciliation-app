@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { ClientBillingPlan, ClientRecord, ProjectionType } from "@/lib/types";
+import type { BillingMethod, ClientBillingPlan, ClientRecord, ProjectionType } from "@/lib/types";
 
 interface Props {
   client: ClientRecord;
@@ -33,16 +33,17 @@ export function ChangePlanDialog({ client, saving, onConfirm, onClose }: Props) 
 
   const [effectiveDate, setEffectiveDate] = useState(TODAY);
   const [newPlan, setNewPlan] = useState<ClientBillingPlan>({
-    billing_plan: "",
-    billing_details: null,
-    billing_pct: 0,
-    billing_day: current.billing_day,
-    notes: null,
-    projection_type: "FIXED",
+    billing_plan:      "",
+    billing_details:   null,
+    billing_method:    current.billing_method ?? "AD_SPEND",
+    billing_pct:       0,
+    billing_day:       current.billing_day,
+    notes:             null,
+    projection_type:   "FIXED",
     projection_amount: null,
-    manual_overrides: {},
-    effective_from: TODAY,
-    effective_to: null,
+    manual_overrides:  {},
+    effective_from:    TODAY,
+    effective_to:      null,
   });
 
   const update = (patch: Partial<ClientBillingPlan>) =>
@@ -94,6 +95,21 @@ export function ChangePlanDialog({ client, saving, onConfirm, onClose }: Props) 
                 value={newPlan.billing_plan}
                 onChange={(e) => update({ billing_plan: e.target.value })}
               />
+            </Field>
+
+            <Field label="Billing method">
+              <Select
+                value={newPlan.billing_method}
+                onValueChange={(v) => update({ billing_method: v as BillingMethod })}
+              >
+                <SelectTrigger className="h-8 text-sm rounded-sm border-[#dddddd]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AD_SPEND">Ad Spend — imported from billing sheet</SelectItem>
+                  <SelectItem value="SUBSCRIPTION">Subscription — auto-generated each period</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
 
             <Field label="Billing details">

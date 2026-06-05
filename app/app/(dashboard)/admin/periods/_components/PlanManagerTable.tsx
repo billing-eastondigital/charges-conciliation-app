@@ -6,13 +6,18 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { EditPlanDialog } from "./EditPlanDialog";
 import { ChangePlanDialog } from "./ChangePlanDialog";
-import type { ClientRecord, ClientBillingPlan, BatchLabel, ProjectionType } from "@/lib/types";
+import type { BillingMethod, ClientRecord, ClientBillingPlan, BatchLabel, ProjectionType } from "@/lib/types";
 
 // ── constants ──────────────────────────────────────────────────────────────
 
 const BATCH_ORDER: Array<BatchLabel | "ALL"> = [
   "ALL", "1", "2", "3", "SUBSCRIPTION", "5", "Consulting", "Multiple",
 ];
+
+const BILLING_METHOD_BADGES: Record<BillingMethod, { label: string; className: string }> = {
+  SUBSCRIPTION: { label: "Subscription", className: "bg-purple-100 text-purple-800 border-purple-200" },
+  AD_SPEND:     { label: "Ad Spend",     className: "bg-gray-100 text-gray-600 border-gray-200" },
+};
 
 const PROJECTION_BADGES: Record<ProjectionType, { label: string; className: string }> = {
   FIXED:       { label: "Fixed",        className: "bg-green-100 text-green-800 border-green-200" },
@@ -36,15 +41,17 @@ function getActivePlan(client: ClientRecord): ClientBillingPlan | null {
 
 interface Props {
   initialClients: ClientRecord[];
+  addPlan: (stripeId: string, plan: ClientBillingPlan) => Promise<void>;
   updatePlan: (stripeId: string, plan: ClientBillingPlan) => Promise<void>;
   changePlan: (stripeId: string, effectiveTo: string, newPlan: ClientBillingPlan) => Promise<void>;
 }
 
-export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Props) {
+export function PlanManagerTable({ initialClients, addPlan, updatePlan, changePlan }: Props) {
   const router = useRouter();
   const [search, setSearch]             = useState("");
   const [batchFilter, setBatchFilter]   = useState<BatchLabel | "ALL">("ALL");
   const [editingClient, setEditingClient]   = useState<ClientRecord | null>(null);
+  const [addingClient, setAddingClient]     = useState<ClientRecord | null>(null);
   const [changingClient, setChangingClient] = useState<ClientRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
@@ -67,6 +74,21 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
   }, [initialClients, search, batchFilter]);
 
   // ── handlers ──
+  async function handleAddPlan(stripeId: string | null, plan: ClientBillingPlan) {
+    if (!stripeId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await addPlan(stripeId, plan);
+      setAddingClient(null);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add plan.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSavePlan(stripeId: string | null, plan: ClientBillingPlan) {
     if (!stripeId) return;
     setSaving(true);
@@ -150,8 +172,9 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
               <tr className="border-b border-[#dddddd] bg-[#F5F5F5]">
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Client</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Plan</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Type</th>
-                <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Amount</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Method</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Projection</th>
+                <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Fee</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Since</th>
                 <th className="px-4 py-2.5" />
               </tr>
@@ -190,7 +213,17 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
                       <td colSpan={4} className="px-4 py-3 text-xs text-[#9ca3af] italic">
                         No billing plan configured
                       </td>
-                      <td className="px-4 py-3" />
+                      <td className="px-4 py-3 text-right">
+                        {c.stripe_id && (
+                          <button
+                            onClick={() => setAddingClient(c)}
+                            disabled={saving}
+                            className="text-xs px-3 py-1.5 border border-[#0170B9] rounded-sm text-[#0170B9] hover:bg-[#eef6ff] transition-colors disabled:opacity-40"
+                          >
+                            Set up plan
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 }
@@ -234,16 +267,26 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
                       )}
                     </td>
 
+                    {/* Billing method */}
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const mb = BILLING_METHOD_BADGES[(plan.billing_method ?? "AD_SPEND") as BillingMethod];
+                        return (
+                          <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border rounded-sm ${mb.className}`}>
+                            {mb.label}
+                          </span>
+                        );
+                      })()}
+                    </td>
+
                     {/* Projection type */}
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border rounded-sm ${badge.className}`}
-                      >
+                      <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border rounded-sm ${badge.className}`}>
                         {badge.label}
                       </span>
                     </td>
 
-                    {/* Amount */}
+                    {/* Fee amount */}
                     <td className="px-4 py-3 text-right font-mono text-sm tabular-nums text-[#3a3a3a]">
                       {plan.projection_amount !== null
                         ? formatMoney(plan.projection_amount)
@@ -282,7 +325,18 @@ export function PlanManagerTable({ initialClients, updatePlan, changePlan }: Pro
         </div>
       </div>
 
-      {/* Dialogs — only open when client has at least one plan */}
+      {/* Add plan — for clients with no existing plan */}
+      {addingClient && (
+        <EditPlanDialog
+          client={addingClient}
+          isNew
+          saving={saving}
+          onSave={(plan) => handleAddPlan(addingClient.stripe_id, plan)}
+          onClose={() => setAddingClient(null)}
+        />
+      )}
+
+      {/* Edit plan — update current active plan in-place */}
       {editingClient && editingClient.billing_plans.length > 0 && (
         <EditPlanDialog
           client={editingClient}
