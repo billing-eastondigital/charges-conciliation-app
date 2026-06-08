@@ -108,6 +108,9 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   // Build ClientProjectionRule[] from DB rows
   const clients: ClientProjectionRule[] = (clientRows ?? [])
     .filter((c) => c.stripe_id) // skip clients without a Stripe ID
+    // Exclude LOST clients whose deactivated_month is before this year.
+    // Clients lost during the year still appear (they have actual data for earlier months).
+    .filter((c) => c.is_active || (c.deactivated_month && c.deactivated_month >= `${yearNum}-01`))
     .map((c) => ({
       stripe_id:         c.stripe_id!,
       display_name:      c.display_name,
