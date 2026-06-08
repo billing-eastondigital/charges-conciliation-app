@@ -138,7 +138,12 @@ function DataRows({ rows, prevCollectedMap }: {
             <td className="px-4 py-3">
               {row.stripe_id ? (
                 <Link href={`/client/${row.stripe_id}`} className="group">
-                  <p className="font-medium text-[#3a3a3a] text-sm leading-snug group-hover:text-[#0170B9] transition-colors">{row.display_name}</p>
+                  <p className="font-medium text-[#3a3a3a] text-sm leading-snug group-hover:text-[#0170B9] transition-colors flex items-center gap-1.5">
+                    {row.display_name}
+                    {row.account_status === "LOST" && (
+                      <span className="inline-block text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 border border-gray-300 px-1.5 py-0.5 rounded-sm leading-none">Lost</span>
+                    )}
+                  </p>
                   <p className="text-xs text-[#6b7280]">{row.primary_email}</p>
                   {row.constituent_accounts.length > 1 && (
                     <p className="text-xs text-[#0170B9] mt-0.5">
@@ -148,7 +153,12 @@ function DataRows({ rows, prevCollectedMap }: {
                 </Link>
               ) : (
                 <>
-                  <p className="font-medium text-[#3a3a3a] text-sm leading-snug">{row.display_name}</p>
+                  <p className="font-medium text-[#3a3a3a] text-sm leading-snug flex items-center gap-1.5">
+                    {row.display_name}
+                    {row.account_status === "LOST" && (
+                      <span className="inline-block text-[10px] font-semibold uppercase tracking-wide bg-gray-100 text-gray-500 border border-gray-300 px-1.5 py-0.5 rounded-sm leading-none">Lost</span>
+                    )}
+                  </p>
                   <p className="text-xs text-[#6b7280]">{row.primary_email}</p>
                 </>
               )}

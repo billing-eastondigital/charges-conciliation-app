@@ -45,6 +45,7 @@ export default async function PeriodPage({ params }: Props) {
     status:           r.recon_status as ReconciliationResult["status"],
     batch:            (r.batch ?? "—") as ReconciliationResult["batch"],
     constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
+    account_status:   (r.account_status ?? null) as ReconciliationResult["account_status"],
   }));
 
   const hasData = results.length > 0;
@@ -85,7 +86,7 @@ export default async function PeriodPage({ params }: Props) {
     ? allClients.filter((c) => c.start_date && c.start_date >= period.start_date && c.start_date <= period.end_date)
     : [];
   const churnedClients = monthKey
-    ? allClients.filter((c) => c.deactivated_month === monthKey)
+    ? allClients.filter((c) => c.account_status === "LOST" && c.deactivated_month === monthKey)
     : [];
 
   // ── MoM bridge computed from stripe_charges ──────────────────────────────

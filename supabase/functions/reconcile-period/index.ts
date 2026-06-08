@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
         .from("client_active_plans")
         .select("stripe_id, display_name, primary_email, batch, projection_amount, billing_plan, billing_pct")
         .eq("billing_method", "SUBSCRIPTION")
+        .eq("is_active", true)
         .not("stripe_id", "is", null);
 
       if (subClients && subClients.length > 0) {
