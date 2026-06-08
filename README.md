@@ -69,7 +69,7 @@ python -m reconciliation_engine.cli \
 
 | Layer | Status |
 |---|---|
-| Supabase schema (16 migrations) | Applied |
+| Supabase schema (17 migrations) | Applied |
 | Seed data (68+ clients, Jan–May 2026) | Loaded |
 | Next.js dashboard | All pages live — Supabase wired |
 | `/admin/import` (xlsx upload) | Live |
