@@ -62,6 +62,7 @@ export default async function ClientPage({ params }: Props) {
     status: r.recon_status as ReconciliationResult["status"],
     batch: (r.batch ?? "—") as ReconciliationResult["batch"],
     constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
+    account_status: (r.account_status ?? null) as ReconciliationResult["account_status"],
   }));
 
   const exceptions: Exception[] = (exceptionRows ?? []).map((r) => ({

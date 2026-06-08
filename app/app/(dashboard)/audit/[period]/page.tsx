@@ -85,6 +85,7 @@ export default async function AuditPage({ params, searchParams }: Props) {
     status:           r.recon_status as ReconciliationStatus,
     batch:            (r.batch ?? "—") as ReconciliationResult["batch"],
     constituent_accounts: [],
+    account_status:   (r.account_status ?? null) as ReconciliationResult["account_status"],
   }));
 
   const kpis = {
