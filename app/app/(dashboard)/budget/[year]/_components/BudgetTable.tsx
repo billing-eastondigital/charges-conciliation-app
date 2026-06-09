@@ -169,16 +169,25 @@ function SubtotalRow({
           );
         })()}
       </td>
-      {/* Full Year Projected + remaining */}
+      {/* Full Year Projected */}
       <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono tabular-nums">
         <div className="text-xs text-[#3a3a3a] font-semibold">{formatMoney(fyProj)}</div>
+      </td>
+      {/* Full Year Actual + pending */}
+      <td className="px-2 py-2 text-right border-l border-[#dddddd] font-mono tabular-nums bg-[#e8f4ff]">
+        <div className="text-xs text-[#0170B9] font-semibold">{formatMoney(ytdAct)}</div>
         {fyProj > 0 && (() => {
-          const remaining = fyProj - ytdAct;
-          const pctDone = Math.min(100, (ytdAct / fyProj) * 100);
+          const pending    = fyProj - ytdAct;
+          const pctPending = Math.max(0, (pending / fyProj) * 100);
+          const pendingNeg = pending < -0.005;
           return (
             <>
-              <div className="text-[10px] text-[#9ca3af]">{formatMoney(remaining)} left</div>
-              <div className="text-[10px] text-[#9ca3af]">{pctDone.toFixed(0)}% done</div>
+              <div className={`text-[10px] ${pendingNeg ? "text-green-700" : "text-[#9ca3af]"}`}>
+                {pendingNeg ? "+" : ""}{formatMoney(Math.abs(pending))} {pendingNeg ? "over" : "pending"}
+              </div>
+              <div className={`text-[10px] ${pendingNeg ? "text-green-700" : "text-[#9ca3af]"}`}>
+                {pctPending.toFixed(0)}% pending
+              </div>
             </>
           );
         })()}
@@ -245,16 +254,26 @@ function ClientRow({
         )}
       </td>
 
-      {/* Full Year Projected + remaining to goal */}
+      {/* Full Year Projected */}
       <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums">
         <div className="text-[#3a3a3a] font-semibold">{formatMoney(row.full_year_projected)}</div>
+      </td>
+
+      {/* Full Year Actual (YTD collected) + pending vs full year */}
+      <td className="px-2 py-2.5 text-right border-l border-[#dddddd] font-mono text-xs tabular-nums bg-[#f0f7ff]">
+        <div className="text-[#0170B9] font-semibold">{formatMoney(row.ytd_actual)}</div>
         {row.full_year_projected > 0 && (() => {
-          const remaining = row.full_year_projected - row.ytd_actual;
-          const pctDone = Math.min(100, (row.ytd_actual / row.full_year_projected) * 100);
+          const pending    = row.full_year_projected - row.ytd_actual;
+          const pctPending = Math.max(0, (pending / row.full_year_projected) * 100);
+          const pendingNeg = pending < -0.005;
           return (
             <>
-              <div className="text-[10px] text-[#9ca3af]">{formatMoney(remaining)} left</div>
-              <div className="text-[10px] text-[#9ca3af]">{pctDone.toFixed(0)}% done</div>
+              <div className={`text-[10px] ${pendingNeg ? "text-green-700" : "text-[#9ca3af]"}`}>
+                {pendingNeg ? "+" : ""}{formatMoney(-pending)} {pendingNeg ? "over" : "pending"}
+              </div>
+              <div className={`text-[10px] ${pendingNeg ? "text-green-700" : "text-[#9ca3af]"}`}>
+                {pctPending.toFixed(0)}% pending
+              </div>
             </>
           );
         })()}
@@ -382,7 +401,10 @@ export function BudgetTable({ rows, months, ytdCutoff }: BudgetTableProps) {
                 YTD Actual
               </th>
               <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide border-l border-[#dddddd] w-28">
-                Full Year
+                FY Proj.
+              </th>
+              <th className="text-right px-2 py-2.5 text-xs font-semibold text-[#0170B9] uppercase tracking-wide border-l border-[#dddddd] w-28 bg-[#e8f4ff]">
+                FY Actual
               </th>
             </tr>
           </thead>
