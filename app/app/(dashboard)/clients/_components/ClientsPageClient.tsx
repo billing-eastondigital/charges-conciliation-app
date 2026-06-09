@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   TrendingUp, TrendingDown, ArrowRight, Search, Plus, ExternalLink, Pencil,
-  AlertTriangle, BookOpen,
+  AlertTriangle, BookOpen, Trash2,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ClientRecord, BatchLabel, AccountStatus, Period, ClientBillingPlan } from "@/lib/types";
-import { updateClientInfo, addClientPlan, updateClientPlan, changeClientPlan } from "../actions";
+import { updateClientInfo, addClientPlan, updateClientPlan, changeClientPlan, deleteClient } from "../actions";
 import { EditPlanDialog } from "../../admin/periods/_components/EditPlanDialog";
 import { ChangePlanDialog } from "../../admin/periods/_components/ChangePlanDialog";
 
@@ -241,8 +241,11 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
   const [editingPlan,   setEditingPlan]   = useState<ClientRecord | null>(null);
   const [addingPlan,    setAddingPlan]    = useState<ClientRecord | null>(null);
   const [changingPlan,  setChangingPlan]  = useState<ClientRecord | null>(null);
-  const [planSaving,    setPlanSaving]    = useState(false);
-  const [planError,     setPlanError]     = useState<string | null>(null);
+  const [planSaving,      setPlanSaving]      = useState(false);
+  const [planError,       setPlanError]       = useState<string | null>(null);
+  const [deletingClient,  setDeletingClient]  = useState<ClientRecord | null>(null);
+  const [deleteError,     setDeleteError]     = useState<string | null>(null);
+  const [deleteConfirm,   setDeleteConfirm]   = useState(false);
 
   const [search,       setSearch]       = useState("");
   const [batchFilter,  setBatchFilter]  = useState<string>("all");
@@ -300,6 +303,19 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
     finally { setPlanSaving(false); }
   }
 
+  async function handleDelete() {
+    if (!deletingClient?.stripe_id) return;
+    setDeleteConfirm(false);
+    setDeleteError(null);
+    try {
+      await deleteClient(deletingClient.stripe_id);
+      setClients((prev) => prev.filter((c) => c.stripe_id !== deletingClient.stripe_id));
+      setDeletingClient(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete client.");
+    }
+  }
+
   return (
     <>
       {/* Edit client info dialog */}
@@ -344,6 +360,58 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
 
       {planError && (
         <div className="bg-red-50 border border-red-200 rounded-sm px-4 py-2.5 text-xs text-red-800">{planError}</div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {deletingClient && (
+        <Dialog open onOpenChange={(open) => { if (!open) { setDeletingClient(null); setDeleteConfirm(false); setDeleteError(null); } }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-base">Delete client</DialogTitle>
+            </DialogHeader>
+            <div className="py-2 space-y-3">
+              <p className="text-sm text-[#4B4F58]">
+                Are you sure you want to delete <strong>{deletingClient.display_name}</strong>?
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-sm px-3 py-2.5 text-xs text-amber-800 space-y-1">
+                <p className="font-semibold">This will permanently:</p>
+                <ul className="list-disc list-inside space-y-0.5 pl-1">
+                  <li>Delete the client record and all billing plans</li>
+                  <li>Remove this client from reconciliation results and exceptions (set to unlinked)</li>
+                </ul>
+              </div>
+              {deleteError && (
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-sm px-3 py-2">{deleteError}</p>
+              )}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs text-[#4B4F58]">I understand this cannot be undone</span>
+              </label>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setDeletingClient(null); setDeleteConfirm(false); setDeleteError(null); }}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={!deleteConfirm}
+                onClick={handleDelete}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-sm disabled:opacity-40"
+              >
+                Delete client
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deleteError && !deletingClient && (
+        <div className="bg-red-50 border border-red-200 rounded-sm px-4 py-2.5 text-xs text-red-800">{deleteError}</div>
       )}
 
       <div className="bg-white border border-[#dddddd] rounded-sm overflow-hidden">
@@ -521,6 +589,13 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
                           className="p-1 rounded-sm text-[#9ca3af] hover:text-[#0170B9] hover:bg-[#e8f4ff] transition-colors"
                         >
                           <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => { setDeletingClient(c); setDeleteConfirm(false); setDeleteError(null); }}
+                          title="Delete client"
+                          className="p-1 rounded-sm text-[#9ca3af] hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </td>

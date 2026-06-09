@@ -71,6 +71,16 @@ export async function updateClientInfo(
   revalidatePath(`/client/${stripeId}`);
 }
 
+export async function deleteClient(stripeId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clients")
+    .delete()
+    .eq("stripe_id", stripeId);
+  if (error) throw error;
+  revalidatePath("/clients");
+}
+
 // ── Billing plan actions ──────────────────────────────────────────
 
 const PLAN_FIELDS = (plan: ClientBillingPlan) => ({
