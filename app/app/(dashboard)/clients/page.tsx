@@ -12,6 +12,7 @@ export default async function ClientsPage() {
   ]);
 
   const clients: ClientRecord[] = (rows ?? []).map((c) => ({
+    id:                c.id as string,
     stripe_id:         c.stripe_id ?? null,
     display_name:      c.display_name,
     primary_email:     c.primary_email,

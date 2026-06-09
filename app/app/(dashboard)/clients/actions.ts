@@ -71,12 +71,13 @@ export async function updateClientInfo(
   revalidatePath(`/client/${stripeId}`);
 }
 
-export async function deleteClient(stripeId: string) {
+export async function deleteClient(id: string, stripeId: string | null) {
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("clients")
-    .delete()
-    .eq("stripe_id", stripeId);
+  // Use stripe_id if available, fall back to internal UUID
+  const query = stripeId
+    ? supabase.from("clients").delete().eq("stripe_id", stripeId)
+    : supabase.from("clients").delete().eq("id", id);
+  const { error } = await query;
   if (error) throw error;
   revalidatePath("/clients");
 }

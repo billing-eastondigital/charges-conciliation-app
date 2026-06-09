@@ -77,6 +77,7 @@ export interface ClientBillingPlan {
  * billing_plans is ordered ascending by effective_from.
  */
 export interface ClientRecord {
+  id: string;                 // internal UUID PK — always present
   stripe_id: string | null;   // cus_… — null for non-Stripe clients
   display_name: string;
   primary_email: string;

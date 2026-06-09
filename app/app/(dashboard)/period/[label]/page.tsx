@@ -21,7 +21,7 @@ export default async function PeriodPage({ params }: Props) {
   const [{ data: periodsRows }, { data: resultRows }, { data: lifecycleRows }] = await Promise.all([
     supabase.from("periods").select("period_label, start_date, end_date, is_closed").order("start_date"),
     supabase.from("reconciliation_results").select("*, clients(accounts)").eq("period_label", periodLabel),
-    supabase.from("clients").select("stripe_id, display_name, primary_email, account_status, batch, google_id, accounts, is_active, deactivated_month, start_date, end_date"),
+    supabase.from("clients").select("id, stripe_id, display_name, primary_email, account_status, batch, google_id, accounts, is_active, deactivated_month, start_date, end_date"),
   ]);
 
   const allPeriods: Period[] = (periodsRows ?? []).map((p) => ({
@@ -67,6 +67,7 @@ export default async function PeriodPage({ params }: Props) {
   // Client lifecycle
   const monthKey = period?.start_date?.slice(0, 7) ?? null;
   const toRecord = (c: NonNullable<typeof lifecycleRows>[number]): ClientRecord => ({
+    id:                c.id as string,
     stripe_id:         c.stripe_id ?? null,
     display_name:      c.display_name,
     primary_email:     c.primary_email,

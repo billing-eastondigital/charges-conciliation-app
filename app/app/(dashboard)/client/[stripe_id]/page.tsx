@@ -80,6 +80,7 @@ export default async function ClientPage({ params }: Props) {
   }));
 
   const clientRecord: ClientRecord | null = clientRow ? {
+    id:        clientRow.id as string,
     stripe_id: clientRow.stripe_id ?? null,
     display_name: clientRow.display_name,
     primary_email: clientRow.primary_email,

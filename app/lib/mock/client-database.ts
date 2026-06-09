@@ -67,6 +67,7 @@ function client(
   overrides: Partial<Pick<ClientRecord, "account_status" | "is_active" | "deactivated_month" | "start_date" | "end_date">> = {}
 ): ClientRecord {
   return {
+    id:           stripe_id ?? crypto.randomUUID(),
     stripe_id,
     display_name,
     primary_email,

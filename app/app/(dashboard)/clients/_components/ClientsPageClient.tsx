@@ -304,12 +304,12 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
   }
 
   async function handleDelete() {
-    if (!deletingClient?.stripe_id) return;
+    if (!deletingClient) return;
     setDeleteConfirm(false);
     setDeleteError(null);
     try {
-      await deleteClient(deletingClient.stripe_id);
-      setClients((prev) => prev.filter((c) => c.stripe_id !== deletingClient.stripe_id));
+      await deleteClient(deletingClient.id, deletingClient.stripe_id);
+      setClients((prev) => prev.filter((c) => c.id !== deletingClient.id));
       setDeletingClient(null);
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : "Failed to delete client.");
