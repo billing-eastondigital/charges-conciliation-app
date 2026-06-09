@@ -110,9 +110,18 @@ function SubtotalRow({
         {label}
       </td>
       {months.map(({ key }) => {
-        const proj = sumMonth(rows, key, "projected");
-        const act  = sumMonth(rows, key, "actual");
-        const hasAct = rows.some((r) => r.months.find((m) => m.month_key === key)?.actual !== null);
+        const proj    = sumMonth(rows, key, "projected");
+        const act     = sumMonth(rows, key, "actual");
+        const hasAct  = rows.some((r) => r.months.find((m) => m.month_key === key)?.actual !== null);
+        const hasProj = rows.some((r) => r.months.find((m) => m.month_key === key)?.projected !== null);
+
+        // No data at all for this batch × month — show dash
+        if (!hasAct && !hasProj) {
+          return (
+            <td key={key} className="px-1 py-2 text-center text-[#cccccc] text-xs border-l border-[#dddddd]">—</td>
+          );
+        }
+
         return (
           <td key={key} className={`px-1.5 py-2 text-right border-l border-[#dddddd] font-mono tabular-nums ${hasAct ? "bg-[#e8f4ff]" : ""}`}>
             {hasAct ? (
@@ -123,10 +132,14 @@ function SubtotalRow({
                 return (
                   <>
                     <div className="text-[#0170B9]">{formatMoney(act)}</div>
-                    <div className={`text-[10px] ${colorClass}`}>
-                      {delta2 > 0.005 ? "+" : ""}{formatMoney(delta2)}
-                    </div>
-                    {pct && <div className={`text-[10px] ${colorClass}`}>{pct}</div>}
+                    {proj > 0 && (
+                      <>
+                        <div className={`text-[10px] ${colorClass}`}>
+                          {delta2 > 0.005 ? "+" : ""}{formatMoney(delta2)}
+                        </div>
+                        {pct && <div className={`text-[10px] ${colorClass}`}>{pct}</div>}
+                      </>
+                    )}
                   </>
                 );
               })()
