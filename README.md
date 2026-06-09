@@ -56,8 +56,8 @@ python -m reconciliation_engine.cli \
 | `/period/[label]` | KPIs · MoM waterfall · client lifecycle · reconciliation table |
 | `/exceptions` | Open exception queue with resolution workflow |
 | `/annual/[year]` | Revenue trend chart + monthly table with avg ticket |
-| `/budget/[year]` | Per-client budget projections vs actuals |
-| `/clients` | Client directory (53 clients) + Won & Churned history |
+| `/budget/[year]` | Per-client budget projections vs actuals — YTD Proj · YTD Actual · FY Proj · FY Actual |
+| `/clients` | Client directory (68+ clients) + Won & Churned history · billing plan editing · delete |
 | `/client/[stripe_id]` | Single client: recon history · plan history · exceptions |
 | `/audit/[period]` | Audit packet: methodology · AR lines · exceptions · hashes |
 | `/billing` | Editable AR sheet (41 columns) |
@@ -69,7 +69,7 @@ python -m reconciliation_engine.cli \
 
 | Layer | Status |
 |---|---|
-| Supabase schema (17 migrations) | Applied |
+| Supabase schema (19 migrations) | Applied |
 | Seed data (68+ clients, Jan–May 2026) | Loaded |
 | Next.js dashboard | All pages live — Supabase wired |
 | `/admin/import` (xlsx upload) | Live |
@@ -79,6 +79,8 @@ python -m reconciliation_engine.cli \
 | Subscription auto-generation | Live (from `billing_method = SUBSCRIPTION`) |
 | Historical ingest (Jan–Apr 2026) | Complete |
 | Exception resolution UI | Live |
+| Client billing plan editing from Clients page | Live |
+| Client delete from Clients page | Live |
 | Launch Stripe account API key | **Pending** — configure `STRIPE_SECRET_KEY_LAUNCH` secret |
 
 ## Agent skills
