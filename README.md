@@ -63,7 +63,7 @@ python -m reconciliation_engine.cli \
 | `/billing` | Editable AR sheet (41 columns) |
 | `/stripe` | Stripe transactions table (read-only) |
 | `/admin/periods` | Plan management per client |
-| `/admin/import` | Upload billing xlsx → ingests to expected_charges |
+| `/admin/import` | Upload billing xlsx → ingests to expected_charges · Pipeline Status panel (cron health, last sync, last 5 recon runs) |
 
 ## Build status
 
@@ -81,6 +81,7 @@ python -m reconciliation_engine.cli \
 | Exception resolution UI | Live |
 | Client billing plan editing from Clients page | Live |
 | Client delete from Clients page | Live |
+| Pipeline Status panel (`/admin/import`) | Live — cron health + last sync + last 5 runs |
 | Launch Stripe account API key | **Pending** — configure `STRIPE_SECRET_KEY_LAUNCH` secret |
 
 ## Agent skills
