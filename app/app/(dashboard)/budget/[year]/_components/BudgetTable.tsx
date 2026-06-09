@@ -34,16 +34,7 @@ function fmtPct(delta: number, base: number | null): string | null {
 // ── sub-components ─────────────────────────────────────────────────────────
 
 function MonthCell({ m, hasActual }: { m: BudgetMonthData; hasActual: boolean }) {
-  // Churned month
-  if (m.projected === null) {
-    return (
-      <td className="px-1 py-2 text-center text-[#cccccc] text-xs border-l border-[#f0f0f0]">
-        —
-      </td>
-    );
-  }
-
-  // Month with actual data
+  // Month with actual data — always show even if no projection
   if (m.actual !== null) {
     const delta = m.delta ?? 0;
     const pos   = delta > 0.005;
@@ -63,6 +54,15 @@ function MonthCell({ m, hasActual }: { m: BudgetMonthData; hasActual: boolean })
             {pct}
           </div>
         )}
+      </td>
+    );
+  }
+
+  // No projection and no actual — churned or no plan
+  if (m.projected === null) {
+    return (
+      <td className="px-1 py-2 text-center text-[#cccccc] text-xs border-l border-[#f0f0f0]">
+        —
       </td>
     );
   }
