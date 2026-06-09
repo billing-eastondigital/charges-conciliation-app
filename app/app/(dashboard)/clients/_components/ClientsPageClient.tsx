@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   TrendingUp, TrendingDown, ArrowRight, Search, Plus, ExternalLink, Pencil,
-  AlertTriangle,
+  AlertTriangle, BookOpen,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { ClientRecord, BatchLabel, AccountStatus, Period } from "@/lib/types";
-import { updateClientInfo } from "../actions";
+import type { ClientRecord, BatchLabel, AccountStatus, Period, ClientBillingPlan } from "@/lib/types";
+import { updateClientInfo, addClientPlan, updateClientPlan, changeClientPlan } from "../actions";
+import { EditPlanDialog } from "../../admin/periods/_components/EditPlanDialog";
+import { ChangePlanDialog } from "../../admin/periods/_components/ChangePlanDialog";
 
 // ── Types ────────────────────────────────────────────────────────
 type Tab = "directory" | "history";
@@ -233,8 +235,14 @@ function EditClientDialog({
 // ── Directory tab ────────────────────────────────────────────────
 
 function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
+  const router = useRouter();
   const [clients, setClients] = useState<ClientRecord[]>(initialClients);
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
+  const [editingPlan,   setEditingPlan]   = useState<ClientRecord | null>(null);
+  const [addingPlan,    setAddingPlan]    = useState<ClientRecord | null>(null);
+  const [changingPlan,  setChangingPlan]  = useState<ClientRecord | null>(null);
+  const [planSaving,    setPlanSaving]    = useState(false);
+  const [planError,     setPlanError]     = useState<string | null>(null);
 
   const [search,       setSearch]       = useState("");
   const [batchFilter,  setBatchFilter]  = useState<string>("all");
@@ -268,15 +276,74 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
     );
   }
 
+  async function handleAddPlan(plan: ClientBillingPlan) {
+    if (!addingPlan?.stripe_id) return;
+    setPlanSaving(true); setPlanError(null);
+    try { await addClientPlan(addingPlan.stripe_id, plan); setAddingPlan(null); router.refresh(); }
+    catch (e) { setPlanError(e instanceof Error ? e.message : "Failed to add plan."); }
+    finally { setPlanSaving(false); }
+  }
+
+  async function handleUpdatePlan(plan: ClientBillingPlan) {
+    if (!editingPlan?.stripe_id) return;
+    setPlanSaving(true); setPlanError(null);
+    try { await updateClientPlan(editingPlan.stripe_id, plan); setEditingPlan(null); router.refresh(); }
+    catch (e) { setPlanError(e instanceof Error ? e.message : "Failed to save plan."); }
+    finally { setPlanSaving(false); }
+  }
+
+  async function handleChangePlan(effectiveTo: string, newPlan: ClientBillingPlan) {
+    if (!changingPlan?.stripe_id) return;
+    setPlanSaving(true); setPlanError(null);
+    try { await changeClientPlan(changingPlan.stripe_id, effectiveTo, newPlan); setChangingPlan(null); router.refresh(); }
+    catch (e) { setPlanError(e instanceof Error ? e.message : "Failed to change plan."); }
+    finally { setPlanSaving(false); }
+  }
+
   return (
     <>
-      {/* Edit dialog */}
+      {/* Edit client info dialog */}
       {editingClient && (
         <EditClientDialog
           client={editingClient}
           onSave={applyEdit}
           onClose={() => setEditingClient(null)}
         />
+      )}
+
+      {/* Add plan dialog */}
+      {addingPlan && (
+        <EditPlanDialog
+          client={addingPlan}
+          isNew
+          saving={planSaving}
+          onSave={handleAddPlan}
+          onClose={() => setAddingPlan(null)}
+        />
+      )}
+
+      {/* Edit plan dialog */}
+      {editingPlan && editingPlan.billing_plans.length > 0 && (
+        <EditPlanDialog
+          client={editingPlan}
+          saving={planSaving}
+          onSave={handleUpdatePlan}
+          onClose={() => setEditingPlan(null)}
+        />
+      )}
+
+      {/* Change plan dialog */}
+      {changingPlan && changingPlan.billing_plans.length > 0 && (
+        <ChangePlanDialog
+          client={changingPlan}
+          saving={planSaving}
+          onConfirm={(effectiveTo, newPlan) => handleChangePlan(effectiveTo, newPlan)}
+          onClose={() => setChangingPlan(null)}
+        />
+      )}
+
+      {planError && (
+        <div className="bg-red-50 border border-red-200 rounded-sm px-4 py-2.5 text-xs text-red-800">{planError}</div>
       )}
 
       <div className="bg-white border border-[#dddddd] rounded-sm overflow-hidden">
@@ -429,9 +496,28 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
                             View <ExternalLink size={10} />
                           </Link>
                         )}
+                        {c.stripe_id && (
+                          plan
+                            ? <>
+                                <button
+                                  onClick={() => setEditingPlan(c)}
+                                  title="Edit billing plan"
+                                  className="p-1 rounded-sm text-[#9ca3af] hover:text-[#7c3aed] hover:bg-[#f3e8ff] transition-colors"
+                                >
+                                  <BookOpen size={12} />
+                                </button>
+                              </>
+                            : <button
+                                onClick={() => setAddingPlan(c)}
+                                title="Set up billing plan"
+                                className="text-[10px] px-2 py-0.5 rounded-sm border border-[#dddddd] text-[#6b7280] hover:border-[#0170B9] hover:text-[#0170B9] transition-colors whitespace-nowrap"
+                              >
+                                Set up plan
+                              </button>
+                        )}
                         <button
                           onClick={() => setEditingClient(c)}
-                          title="Edit start / end date"
+                          title="Edit client info"
                           className="p-1 rounded-sm text-[#9ca3af] hover:text-[#0170B9] hover:bg-[#e8f4ff] transition-colors"
                         >
                           <Pencil size={12} />
