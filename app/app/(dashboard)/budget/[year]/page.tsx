@@ -79,13 +79,17 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   const reconMonthKeySet = new Set(Object.values(PERIOD_TO_MONTH));
 
   // Build actuals map: stripe_id → { "2026-05": amount }
+  // Only store months where real money was collected (>0).
+  // $0 rows (FAILED_HARD, MISSING_PAYMENT) are not revenue — they render as "—" not "$0.00".
   // Primary source: reconciliation_results (authoritative for closed/reconciled months)
   const actuals: Record<string, Record<string, number>> = {};
   for (const row of reconRows ?? []) {
     const monthKey = PERIOD_TO_MONTH[row.period_label];
     if (!monthKey || !row.stripe_id) continue;
+    const amount = parseFloat(String(row.collected_amount ?? "0"));
+    if (amount === 0) continue;
     if (!actuals[row.stripe_id]) actuals[row.stripe_id] = {};
-    actuals[row.stripe_id][monthKey] = parseFloat(String(row.collected_amount ?? "0"));
+    actuals[row.stripe_id][monthKey] = amount;
   }
 
   // Secondary source: stripe_charges for months not yet reconciled
@@ -95,9 +99,11 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
     if (!row.stripe_id || !row.period_label) continue;
     const monthKey = periodLabelToMonthKey(row.period_label);
     if (!monthKey || reconMonthKeySet.has(monthKey)) continue; // skip already-reconciled months
+    const amount = parseFloat(String(row.amount ?? "0"));
+    if (amount === 0) continue;
     stripeOnlyMonthKeys.add(monthKey);
     if (!actuals[row.stripe_id]) actuals[row.stripe_id] = {};
-    actuals[row.stripe_id][monthKey] = (actuals[row.stripe_id][monthKey] ?? 0) + parseFloat(String(row.amount ?? "0"));
+    actuals[row.stripe_id][monthKey] = (actuals[row.stripe_id][monthKey] ?? 0) + amount;
   }
 
   // YTD_CUTOFF = last month with any actual data (recon OR Stripe)
