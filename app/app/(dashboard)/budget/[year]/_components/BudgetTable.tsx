@@ -272,7 +272,7 @@ interface BudgetTableProps {
 }
 
 export function BudgetTable({ rows, months, ytdCutoff }: BudgetTableProps) {
-  const [groupByBatch, setGroupByBatch] = useState(false);
+  const [groupByBatch, setGroupByBatch] = useState(true);
   const [search, setSearch]             = useState("");
   const [showInactive, setShowInactive] = useState(true);
 
