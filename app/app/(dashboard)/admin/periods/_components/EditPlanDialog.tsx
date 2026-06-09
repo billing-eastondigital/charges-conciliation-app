@@ -56,13 +56,13 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{isNew ? "Set Up Billing Plan" : "Edit Billing Plan"}</DialogTitle>
           <p className="text-sm text-[#6b7280]">{client.display_name}</p>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 pr-1">
           <Field label="Plan name">
             <input
               className={inputClass}
