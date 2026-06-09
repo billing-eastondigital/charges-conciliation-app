@@ -277,20 +277,25 @@ export function BudgetTable({ rows, months, ytdCutoff }: BudgetTableProps) {
   const [showInactive, setShowInactive] = useState(true);
 
   const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      if (!showInactive && !r.is_active) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return r.display_name.toLowerCase().includes(q) || r.primary_email.toLowerCase().includes(q);
-      }
-      return true;
-    });
+    return rows
+      .filter((r) => {
+        if (!showInactive && !r.is_active) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          return r.display_name.toLowerCase().includes(q) || r.primary_email.toLowerCase().includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [rows, showInactive, search]);
 
   const grouped = useMemo(() => {
     if (!groupByBatch) return null;
     return BATCH_ORDER
-      .map((batch) => ({ batch, rows: filtered.filter((r) => r.batch === batch) }))
+      .map((batch) => ({
+        batch,
+        rows: filtered.filter((r) => r.batch === batch),
+      }))
       .filter(({ rows }) => rows.length > 0);
   }, [filtered, groupByBatch]);
 
