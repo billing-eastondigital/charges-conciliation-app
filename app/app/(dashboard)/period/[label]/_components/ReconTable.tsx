@@ -164,7 +164,24 @@ function DataRows({ rows, prevCollectedMap }: {
               )}
             </td>
             <td className="px-4 py-3">
-              <StatusBadge status={row.status} />
+              <div className="flex flex-col gap-1 items-start">
+                <StatusBadge status={row.status} />
+                {row.exception_resolution === "RESOLVED" && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-sm leading-none whitespace-nowrap">
+                    ✓ Resolved
+                  </span>
+                )}
+                {row.exception_resolution === "WONT_FIX" && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 border border-gray-300 px-1.5 py-0.5 rounded-sm leading-none whitespace-nowrap">
+                    ✓ Won&apos;t fix
+                  </span>
+                )}
+                {row.exception_resolution === "ESCALATED" && (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-sm leading-none whitespace-nowrap">
+                    ↑ Escalated
+                  </span>
+                )}
+              </div>
             </td>
             <td className="px-4 py-3 text-right">
               <MoneyCell amount={row.expected_amount} />

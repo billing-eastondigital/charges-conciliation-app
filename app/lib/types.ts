@@ -114,6 +114,7 @@ export interface ReconciliationResult {
   batch: BatchLabel;          // billing batch from AR sheet
   constituent_accounts: string[]; // account names merged under this cus_id
   account_status?: AccountStatus | null;
+  exception_resolution?: "OPEN" | "RESOLVED" | "WONT_FIX" | "ESCALATED" | null;
 }
 
 // ------------------------------------------------------------

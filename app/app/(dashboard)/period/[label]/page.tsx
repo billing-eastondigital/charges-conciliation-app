@@ -17,12 +17,35 @@ export default async function PeriodPage({ params }: Props) {
 
   const supabase = await createClient();
 
-  // Fetch periods + results + client lifecycle in parallel
-  const [{ data: periodsRows }, { data: resultRows }, { data: lifecycleRows }] = await Promise.all([
+  // Fetch periods + results + client lifecycle + exceptions in parallel
+  const [{ data: periodsRows }, { data: resultRows }, { data: lifecycleRows }, { data: exceptionRows }] = await Promise.all([
     supabase.from("periods").select("period_label, start_date, end_date, is_closed").order("start_date"),
     supabase.from("reconciliation_results").select("*, clients(accounts)").eq("period_label", periodLabel),
     supabase.from("clients").select("id, stripe_id, display_name, primary_email, account_status, batch, google_id, accounts, is_active, deactivated_month, start_date, end_date"),
+    supabase.from("exceptions").select("stripe_id, resolution_status").eq("period_label", periodLabel),
   ]);
+
+  // Build stripe_id → aggregate resolution map.
+  // A client is "fully resolved" when ALL their exceptions are in a terminal state.
+  // Terminal: RESOLVED or WONT_FIX. Non-terminal: OPEN or ESCALATED.
+  type ResolutionValue = "OPEN" | "RESOLVED" | "WONT_FIX" | "ESCALATED";
+  const exceptionResolutionMap = new Map<string, ResolutionValue>();
+  const exceptionsByStripeId = new Map<string, ResolutionValue[]>();
+  for (const ex of exceptionRows ?? []) {
+    if (!ex.stripe_id) continue;
+    const list = exceptionsByStripeId.get(ex.stripe_id) ?? [];
+    list.push(ex.resolution_status as ResolutionValue);
+    exceptionsByStripeId.set(ex.stripe_id, list);
+  }
+  for (const [stripeId, statuses] of exceptionsByStripeId) {
+    const hasOpen      = statuses.some((s) => s === "OPEN");
+    const hasEscalated = statuses.some((s) => s === "ESCALATED");
+    const allTerminal  = statuses.every((s) => s === "RESOLVED" || s === "WONT_FIX");
+    const hasWontFix   = statuses.some((s) => s === "WONT_FIX");
+    if (hasOpen)            exceptionResolutionMap.set(stripeId, "OPEN");
+    else if (hasEscalated)  exceptionResolutionMap.set(stripeId, "ESCALATED");
+    else if (allTerminal)   exceptionResolutionMap.set(stripeId, hasWontFix ? "WONT_FIX" : "RESOLVED");
+  }
 
   const allPeriods: Period[] = (periodsRows ?? []).map((p) => ({
     period_label: p.period_label,
@@ -45,7 +68,8 @@ export default async function PeriodPage({ params }: Props) {
     status:           r.recon_status as ReconciliationResult["status"],
     batch:            (r.batch ?? "—") as ReconciliationResult["batch"],
     constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
-    account_status:   (r.account_status ?? null) as ReconciliationResult["account_status"],
+    account_status:        (r.account_status ?? null) as ReconciliationResult["account_status"],
+    exception_resolution:  (r.stripe_id ? (exceptionResolutionMap.get(r.stripe_id) ?? null) : null) as ReconciliationResult["exception_resolution"],
   }));
 
   const hasData = results.length > 0;
