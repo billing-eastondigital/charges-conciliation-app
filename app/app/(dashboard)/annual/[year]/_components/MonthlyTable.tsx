@@ -33,6 +33,7 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Expected</th>
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Collected</th>
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide">Variance</th>
+            <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">MoM Change</th>
             <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">Avg Ticket</th>
           </tr>
         </thead>
@@ -44,6 +45,10 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
             const prevAvg = i > 0 ? avgTickets[i - 1] : null;
             const delta = prevAvg !== null ? avg - prevAvg : null;
             const deltaPct = prevAvg ? (delta! / prevAvg) * 100 : null;
+
+            const prevCollected = i > 0 ? data[i - 1].collected : null;
+            const momAbs = prevCollected !== null ? m.collected - prevCollected : null;
+            const momPct = prevCollected && prevCollected > 0 ? (momAbs! / prevCollected) * 100 : null;
             return (
               <tr key={m.period_label} className="border-b border-[#dddddd] last:border-0 hover:bg-[#eef6ff] transition-colors">
                 <td className="px-4 py-3">
@@ -84,6 +89,20 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
                   )}
                 </td>
                 <td className="px-4 py-3 text-right font-mono tabular-nums">
+                  {momAbs !== null && momPct !== null ? (
+                    <span className={`font-semibold ${
+                      momAbs > 0.005 ? "text-green-700" : momAbs < -0.005 ? "text-red-700" : "text-[#6b7280]"
+                    }`}>
+                      {momAbs >= 0 ? "+" : ""}{formatMoney(momAbs)}
+                      <div className="text-[10px] font-normal leading-tight">
+                        {momPct >= 0 ? "+" : ""}{momPct.toFixed(1)}%
+                      </div>
+                    </span>
+                  ) : (
+                    <span className="text-[#9ca3af] text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right font-mono tabular-nums">
                   <span className="text-[#3a3a3a]">{formatMoney(avg)}</span>
                   {delta !== null && deltaPct !== null && (
                     <div className={`text-[10px] font-sans leading-tight ${
@@ -118,6 +137,7 @@ export function MonthlyTable({ data }: MonthlyTableProps) {
                 </div>
               )}
             </td>
+            <td className="px-4 py-2.5 text-right text-[#9ca3af] text-xs">—</td>
             <td className="px-4 py-2.5 text-right font-mono tabular-nums text-[#3a3a3a]">
               {/* YTD avg ticket = total collected / avg client count across months */}
               {(() => {
