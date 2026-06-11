@@ -56,21 +56,40 @@ export default async function PeriodPage({ params }: Props) {
 
   const period = allPeriods.find((p) => p.period_label === periodLabel) ?? null;
 
-  const results: ReconciliationResult[] = (resultRows ?? []).map((r) => ({
-    id:               r.id,
-    period_label:     r.period_label,
-    stripe_id:        r.stripe_id ?? "",
-    display_name:     r.display_name ?? "",
-    primary_email:    r.primary_email ?? "",
-    expected_amount:  parseFloat(r.expected_amount).toFixed(4),
-    collected_amount: parseFloat(r.collected_amount).toFixed(2),
-    variance:         parseFloat(r.variance).toFixed(4),
-    status:           r.recon_status as ReconciliationResult["status"],
-    batch:            (r.batch ?? "—") as ReconciliationResult["batch"],
-    constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
-    account_status:        (r.account_status ?? null) as ReconciliationResult["account_status"],
-    exception_resolution:  (r.stripe_id ? (exceptionResolutionMap.get(r.stripe_id) ?? null) : null) as ReconciliationResult["exception_resolution"],
-  }));
+  // Build set of stripe_ids to exclude: clients LOST before this period.
+  // A client LOST in the current month still appears (churned lifecycle signal).
+  // A client LOST in any prior month should not appear at all.
+  const excludedStripeIds: Set<string> = monthKey
+    ? new Set(
+        (lifecycleRows ?? [])
+          .filter(
+            (c) =>
+              c.account_status === "LOST" &&
+              c.deactivated_month !== null &&
+              c.deactivated_month < monthKey &&
+              c.stripe_id !== null,
+          )
+          .map((c) => c.stripe_id as string),
+      )
+    : new Set<string>();
+
+  const results: ReconciliationResult[] = (resultRows ?? [])
+    .filter((r) => !r.stripe_id || !excludedStripeIds.has(r.stripe_id))
+    .map((r) => ({
+      id:               r.id,
+      period_label:     r.period_label,
+      stripe_id:        r.stripe_id ?? "",
+      display_name:     r.display_name ?? "",
+      primary_email:    r.primary_email ?? "",
+      expected_amount:  parseFloat(r.expected_amount).toFixed(4),
+      collected_amount: parseFloat(r.collected_amount).toFixed(2),
+      variance:         parseFloat(r.variance).toFixed(4),
+      status:           r.recon_status as ReconciliationResult["status"],
+      batch:            (r.batch ?? "—") as ReconciliationResult["batch"],
+      constituent_accounts: (r.clients as { accounts: string[] } | null)?.accounts ?? [],
+      account_status:        (r.account_status ?? null) as ReconciliationResult["account_status"],
+      exception_resolution:  (r.stripe_id ? (exceptionResolutionMap.get(r.stripe_id) ?? null) : null) as ReconciliationResult["exception_resolution"],
+    }));
 
   const hasData = results.length > 0;
 

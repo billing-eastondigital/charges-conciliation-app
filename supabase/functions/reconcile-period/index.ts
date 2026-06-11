@@ -249,13 +249,20 @@ Deno.serve(async (req) => {
     {
       const { data: subClients } = await supabase
         .from("client_active_plans")
-        .select("stripe_id, display_name, primary_email, batch, projection_amount, billing_plan, billing_pct")
+        .select("stripe_id, display_name, primary_email, batch, projection_amount, billing_plan, billing_pct, deactivated_month")
         .eq("billing_method", "SUBSCRIPTION")
         .eq("is_active", true)
         .not("stripe_id", "is", null);
 
-      if (subClients && subClients.length > 0) {
-        const subStripeIds = subClients.map((c) => c.stripe_id as string);
+      // Exclude clients LOST before this period (deactivated_month < period month).
+      // A client churning in the current period is still billed their final month.
+      const periodMonth = period.start_date.slice(0, 7); // "YYYY-MM"
+      const activeSubClients = (subClients ?? []).filter(
+        (c) => !c.deactivated_month || c.deactivated_month >= periodMonth,
+      );
+
+      if (activeSubClients && activeSubClients.length > 0) {
+        const subStripeIds = activeSubClients.map((c) => c.stripe_id as string);
 
         const { data: existing } = await supabase
           .from("expected_charges")
@@ -265,7 +272,7 @@ Deno.serve(async (req) => {
 
         const alreadyHasCharge = new Set((existing ?? []).map((r) => r.stripe_id as string));
 
-        const toInsert = subClients
+        const toInsert = activeSubClients
           .filter((c) => !alreadyHasCharge.has(c.stripe_id as string))
           .map((c) => ({
             period_label,
