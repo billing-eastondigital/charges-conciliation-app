@@ -114,9 +114,9 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
   // Build ClientProjectionRule[] from DB rows
   const clients: ClientProjectionRule[] = (clientRows ?? [])
     .filter((c) => c.stripe_id) // skip clients without a Stripe ID
-    // Exclude LOST clients whose deactivated_month is January or earlier of this year.
-    // Only clients who churned from February onward are kept (they have actuals for earlier months).
-    .filter((c) => c.is_active || (c.deactivated_month && c.deactivated_month > `${yearNum}-01`))
+    // Exclude LOST clients who deactivated before January of this year — no actuals to show.
+    // Clients with deactivated_month >= Jan of this year are kept (they have actuals for the months they were active).
+    .filter((c) => c.is_active || (c.deactivated_month && c.deactivated_month >= `${yearNum}-01`))
     .map((c) => ({
       stripe_id:         c.stripe_id!,
       display_name:      c.display_name,
@@ -144,15 +144,23 @@ export default async function BudgetPage({ params }: BudgetPageProps) {
 
   const budgetRows = buildBudgetRows(clients, actuals, BUDGET_MONTHS_2026, YTD_CUTOFF);
 
-  // Aggregate KPIs
+  // Aggregate KPIs.
+  // ytd_actual is computed from the full actuals map (all clients, not just tracked ones)
+  // so it matches the Annual page's "YTD Collected" figure.
+  // ytd_delta stays client-scoped (projected vs actual for clients with projections).
   const sum = (field: "ytd_projected" | "ytd_actual" | "ytd_delta" | "full_year_projected") =>
     budgetRows.reduce((s, r) => s + r[field], 0);
+
+  const ytd_actual_total = Object.values(actuals)
+    .flatMap((monthMap) => Object.entries(monthMap))
+    .filter(([mk]) => mk <= YTD_CUTOFF)
+    .reduce((s, [, v]) => s + v, 0);
 
   const kpis = {
     full_year_projected:  sum("full_year_projected"),
     ytd_projected:        sum("ytd_projected"),
-    ytd_actual:           sum("ytd_actual"),
-    ytd_delta:            sum("ytd_delta"),
+    ytd_actual:           ytd_actual_total,
+    ytd_delta:            ytd_actual_total - sum("ytd_projected"),
     active_clients:       budgetRows.filter((r) => r.is_active).length,
     churned_clients:      budgetRows.filter((r) => !r.is_active).length,
     next_month_projected: budgetRows.reduce(
