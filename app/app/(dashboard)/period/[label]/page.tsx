@@ -55,6 +55,7 @@ export default async function PeriodPage({ params }: Props) {
   }));
 
   const period = allPeriods.find((p) => p.period_label === periodLabel) ?? null;
+  const monthKey = period?.start_date?.slice(0, 7) ?? null;
 
   // Build set of stripe_ids to exclude: clients LOST before this period.
   // A client LOST in the current month still appears (churned lifecycle signal).
@@ -108,7 +109,6 @@ export default async function PeriodPage({ params }: Props) {
   } : null;
 
   // Client lifecycle
-  const monthKey = period?.start_date?.slice(0, 7) ?? null;
   const toRecord = (c: NonNullable<typeof lifecycleRows>[number]): ClientRecord => ({
     id:                c.id as string,
     stripe_id:         c.stripe_id ?? null,
