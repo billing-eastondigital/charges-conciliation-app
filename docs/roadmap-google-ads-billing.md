@@ -124,7 +124,7 @@ Extend Plan Management (admin/periods + clients page) Edit/Set-up dialogs with: 
 
 ---
 
-## Phase 3 — Ingestion: `ingest-google-ads` edge function
+## Phase 3 — Ingestion: `ingest-google-ads` edge function ✅ COMPLETE
 
 **Ingestion pattern — runs ONCE per client per billing cycle, not daily accumulation.**
 Google Ads may adjust conversion attribution up until the last day of the period. Fetching
@@ -160,7 +160,7 @@ Pipeline Status panel.
 
 ---
 
-## Phase 4 — Billing calculation → `expected_charges`
+## Phase 4 — Billing calculation → `expected_charges` ✅ COMPLETE
 
 Port `inser_final_report.py` SQL to a Postgres function `generate_ads_billing(period_label)`:
 1. Aggregate `google_ads_campaigns` per google_id for the period window, applying:
@@ -181,7 +181,7 @@ clients before merging.
 
 ---
 
-## Phase 5 — UI
+## Phase 5 — UI ← NEXT
 
 **5.1 — Billing tab rework** (`app/(dashboard)/billing/`)
 From in-memory editable table → reads `expected_charges` + `billing_detail` for the selected
@@ -246,15 +246,16 @@ clients is worse than doing it manually.
 
 ## Sequence & sizing
 
-| Phase | Depends on | Size |
-|---|---|---|
-| 0 ADR + key rotation + config export | — | S (mostly decisions) |
-| 1 Migrations | 0 | S |
-| 2 Backfill + plan UI | 1 | M |
-| 3 ingest-google-ads | 1, 0.3 | M |
-| 4 Calculation → expected_charges | 2, 3 | L (the core; needs regression gate) |
-| 5 UI | 4 | M |
-| 6 Parallel run + cutover | 5 | M (calendar-bound: one full month) |
+| Phase | Depends on | Size | Status |
+|---|---|---|---|
+| 0 ADR + key rotation + config export | — | S | ✅ |
+| 1 Migrations | 0 | S | ✅ |
+| 2 Backfill + plan UI | 1 | M | ✅ |
+| 3 ingest-google-ads | 1, 0.3 | M | ✅ validated 2026-06-12 |
+| 4 Calculation → expected_charges | 2, 3 | L | ✅ validated 2026-06-12 |
+| 5 UI | 4 | M | ← NEXT |
+| 6 Parallel run + cutover | 5 | M (calendar-bound: one full month) | pending |
+| 7 Make.com invoice automation | 6 | M | future |
 
 Critical path: 0 → 1 → 3 → 4. Phase 2 UI and Phase 5 can overlap with neighbors.
 
