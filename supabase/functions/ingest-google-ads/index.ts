@@ -195,6 +195,8 @@ Deno.serve(async (req) => {
 
     const today = todayInLA();
     const periodLabel = resolvePeriodLabel(body.period_label, today);
+    // billing_day_override: for testing only — simulates running on a different billing day
+    const billingDay: number = body.billing_day_override ? parseInt(body.billing_day_override) : today.day;
 
     // Verify period exists in DB (or create it)
     const { data: period, error: periodErr } = await supabase
@@ -208,13 +210,13 @@ Deno.serve(async (req) => {
     if (period.is_closed) throw new Error(`Period "${periodLabel}" is closed — cannot re-ingest.`);
 
     // Load all active ADS_REVENUE / ADS_COST clients that have a google_ads_customer_id
-    // and whose billing_day_one = today's day (LA timezone)
+    // and whose billing_day_one = today's day (LA timezone), or the override day for testing
     const { data: plans, error: plansErr } = await supabase
       .from("client_active_plans")
       .select("stripe_id, google_ads_customer_id, billing_method, billing_day_one, base_fee, billing_percentage")
       .in("billing_method", ["ADS_REVENUE", "ADS_COST"])
       .not("google_ads_customer_id", "is", null)
-      .eq("billing_day_one", today.day);
+      .eq("billing_day_one", billingDay);
 
     if (plansErr) throw new Error(`Plans query failed: ${plansErr.message}`);
 
