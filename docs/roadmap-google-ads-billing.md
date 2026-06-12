@@ -212,6 +212,38 @@ Show google_id + ads-billing config on the header card; campaign history section
 
 ---
 
+## Phase 7 — Make.com invoice automation (future)
+
+**Goal**: close the full cycle inside recon — billing calculated → invoice generated → link stored.
+
+**Flow**:
+1. A Make.com scenario watches Supabase for `expected_charges` rows where
+   `source IN ('ADS_REVENUE','ADS_COST','AD_SPEND')` and `invoice_url IS NULL` and the
+   period is ready to bill (Google Day has passed).
+2. Make reads the `billing_detail` jsonb (line items: base fee, shopping rev/%, search rev/%,
+   memo, DFW if present) and creates a Stripe Invoice via the Stripe API with those exact
+   line items.
+3. On success, Make writes the generated invoice URL back to `expected_charges.invoice_url`
+   (new column). The billing table in recon renders it as a clickable link per row.
+4. Owner reviews invoices in recon before sending — one-click "Send" triggers Make to
+   finalize and send the Stripe invoice to the client.
+
+**Schema addition needed** (migration at phase start):
+- `expected_charges.invoice_url text NULL` — Stripe hosted invoice URL.
+- `expected_charges.invoice_status text NULL` — `'draft'|'open'|'paid'|'void'`.
+
+**Why Make and not a Supabase edge function**: Make handles the Stripe Invoice API complexity,
+retry logic, and gives a no-code audit trail of every invoice action without adding API key
+management for Stripe invoicing to the recon codebase.
+
+**Prerequisite**: Phase 5 billing UI must be complete and line items must be validated against
+the legacy system (Phase 6) before automating invoice generation — wrong line items sent to
+clients is worse than doing it manually.
+
+**Deliverable**: Make scenario + migration + invoice_url column rendered in billing tab.
+
+---
+
 ## Sequence & sizing
 
 | Phase | Depends on | Size |
