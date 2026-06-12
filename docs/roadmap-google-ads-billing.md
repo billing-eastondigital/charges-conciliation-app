@@ -218,11 +218,42 @@ Show google_id + ads-billing config on the header card; campaign history section
 
 Critical path: 0 → 1 → 3 → 4. Phase 2 UI and Phase 5 can overlap with neighbors.
 
+## Confirmed business rules (from client config CSV analysis)
+
+- **billing_day_one = 31**: use last day of month when the month has fewer days (e.g. Feb 28/29).
+- **Billing days in use**: 1, 4, 6, 7, 8, 12, 13, 15, 19, 20, 22, 28, 31 — window logic must be
+  fully generic, not hardcoded for day-1 and day-20 only.
+- **google_id ↔ stripe_id**: target relationship is 1-to-1. Multi-google_id rows for the same
+  stripe_id (cus_MAQFq6FlG4sGc3, cus_Gks5Luf2oz80Vv, cus_OinjM3GcjQrwhs) are legacy data
+  quality issues to correct in a future cleanup — not modeled as a junction table.
+  During backfill: flag these for manual review, do not auto-assign.
+- **Clients that will always be AD_SPEND (never automated)**:
+  - `cus_GjG9nvTKNHvKm3` — 2% of Year-over-Year Revenue Growth, explicitly "DO IT MANUALLY"
+  - `cus_Q14kHfVtV7mClW` — "Custom. Billed by Gabriel"
+  - `paypal` — not a real Stripe ID, managed via PayPal by Gabriel
+  - `cus_NzutB5xP7tpKlr` — Amazon flat rate, no batch assigned
+  - `cus_Oz1JPWE4Uew8XA` — billing_day_one = NULL, incomplete config
+
+## Out of scope for now — future integrations
+
+- **DFW charges**: additional per-client fee (typically $20, sometimes variable based on product
+  count). Currently added manually. Future: integrate with **DataFeedWatch** API as the data
+  source. Model as `dfw_amount numeric` on billing plan when that integration is built.
+- **Bing revenue**: Bing campaign data currently not available via API integration. Future:
+  add Bing Ads API as a second ingestion source alongside Google Ads, using the same
+  `google_ads_campaigns`-style table (`bing_ads_campaigns`). Same calculation pattern,
+  separate channel bucket.
+
+Both items will require their own ADRs and schema migrations when prioritized.
+
 ## Risks
-- **Billing-window vs calendar-period mismatch** (non-day-1 clients) — resolve in ADR before Phase 1.
+- **Billing-window vs calendar-period mismatch** (non-day-1 clients) — RESOLVED: period =
+  month of billing execution. Window is metadata only.
 - **Google Ads internal API is a black box** (separate repo, not analyzed) — confirm uptime/owner;
-  recon takes a hard dependency on it.
-- **Legacy config data quality** (base fees stored as TEXT, free-text rules) — backfill must
-  validate, not coerce silently.
-- **Double-billing during transition** — a client must never be both `ADS_AUTO` and present in
-  the monthly xlsx import; add a guard in `ingest-billing` that rejects xlsx rows for ADS_AUTO clients.
+  recon takes a hard dependency on it. Production URL still needed (localhost in .env).
+- **Legacy config data quality** (base fees stored as TEXT, free-text rules, NULL billing days)
+  — backfill script must validate and report, never coerce silently.
+- **Double-billing during transition** — a client must never be both `ADS_REVENUE`/`ADS_COST`
+  and present in the monthly xlsx import; add a guard in `ingest-billing` that rejects xlsx
+  rows for ADS_REVENUE/ADS_COST clients.
+- **billing_day_one = 31** — use last day of month for months with fewer days (confirmed).
