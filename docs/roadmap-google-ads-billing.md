@@ -21,22 +21,39 @@ generated from campaign data. Must capture:
 - Campaign filters: name must contain `'ED |'`; exclude Brand Search (ILIKE `'%Brand%'` and
   not `'%Non%Brand%'`); drop campaigns with cost=0 AND conv_value=0.
 - Formula: `total_bill = google_bf + shopping_rev * pct/100 + search_rev * pct/100`.
-- Billing window: per-client `billing_day_one` (day 1 → calendar month; day N → N to N+30),
-  timezone America/Los_Angeles. **Open question to resolve in the ADR**: recon periods are
-  calendar months — decide how non-day-1 windows map to a `period` (recommendation: attribute
-  to the month containing `date_from`, same as the legacy system's billing_month).
+- Billing window: per-client `billing_day_one` (day 1 → previous full calendar month;
+  day N → from day N of previous month to day N-1 of current month, ~30 days).
+  Timezone America/Los_Angeles. **RESOLVED**: `expected_charges.period` = the month when
+  billing executes (current month = when the Stripe charge lands), NOT the campaign window month.
+  A day-20 client running June 20 with May 20–Jun 19 campaigns → expected_charge in "June 2026".
+  The campaign window is metadata only (stored in `billing_detail` jsonb + `google_ads_campaigns`).
 
-**0.2 — Confirm with owner**
-- Single `billing_percentage` for Shopping AND Search (legacy behavior) — OK?
-- Which clients are `use_cost` vs conversion-value.
-- Whether non-day-1 billing windows actually exist among active clients (simplifies a lot if not).
+**0.2 — Confirmed with owner (no longer blocking)**
+- ✅ Single `billing_percentage` for Shopping AND Search — confirmed, keep simple.
+- ✅ `custom_rule = 'use_cost'` exists but rare (e.g. KTM) — modeled as per-client flag in billing plan.
+- ✅ Non-day-1 clients exist — Batch 3 uses day 20. Full window logic must be preserved.
+- ✅ Period attribution — confirmed: `expected_charges.period` = month billing executes (see above).
 
-**0.3 — Operational prerequisites**
-- Obtain Google Ads internal API base URL + API key (exists, deployed; key currently leaked in
-  `billings/api-google-ads-doc.txt` — **rotate it**).
-- Set as Supabase edge function secrets: `GADS_API_URL`, `GADS_API_KEY`.
-- Export client config from the legacy RDS DB (google_id, billing_percentage, billing_day_one,
-  custom_rule, google_bf, batch per client) — one-time CSV pull for the backfill in Phase 2.
+**0.3 — What to request from the developer (blocking)**
+
+1. **Rotate the Google Ads API key** — the current key is leaked in `billings/api-google-ads-doc.txt`.
+   After rotation, provide: new API key + base URL of the Google Ads internal microservice.
+   These go into Supabase secrets as `GADS_API_URL` and `GADS_API_KEY`.
+
+2. **Client config CSV export** from the legacy RDS. Ask the developer to run this query and
+   send the result as CSV:
+   ```sql
+   SELECT
+     p.stripe_id, p.google_id, p.account_status,
+     b.billing_percentage, b.billing_day_one, b.billing_day_two,
+     b.plan, b.billing_details, b.notes, b.custom_rule,
+     f.google_bf, f.batch
+   FROM billing_app_client_platform_ids p
+   LEFT JOIN billing_app_client_billing_settings b ON b.client = p.client
+   LEFT JOIN billing_app_client_bfs f ON f.client = p.client
+   WHERE p.account_status = 'ACTIVE'
+   ORDER BY p.stripe_id;
+   ```
 
 **Deliverable**: approved ADR. No code.
 
@@ -97,7 +114,12 @@ Extend Plan Management (admin/periods + clients page) Edit/Set-up dialogs with: 
 ## Phase 3 — Ingestion: `ingest-google-ads` edge function
 
 Modeled on `ingest-stripe`:
-1. Input: `{ period_label: "auto" | "June 2026" }` → resolves billing window (Phase 0 ADR rule).
+1. Input: `{ period_label: "auto" | "June 2026" }` → resolves the target period (= the period
+   where expected_charges will land). For each client, the campaign window is derived from
+   `billing_day_one`: if day=1 → previous full calendar month; if day=N → from day N of
+   previous month to day N-1 of current month. Timezone: America/Los_Angeles.
+   The function runs daily via cron; it only processes clients whose `billing_day_one` matches
+   today's date in LA time (same pattern as the legacy script).
 2. For each client with `billing_method = 'ADS_AUTO'` and non-null `google_id` and active plan:
    call `GET {GADS_API_URL}/api/metrics/campaign-performance?customerId&startDate&endDate`
    (X-API-Key header; strip dashes from google_id).
