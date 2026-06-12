@@ -296,6 +296,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Auto-generate expected_charges for ADS_REVENUE / ADS_COST clients ──────
+    // Calls generate_ads_billing() which reads google_ads_spend for this period,
+    // applies campaign filters (ED | prefix, brand exclusions, channel buckets),
+    // and writes expected_charges rows with source = 'ADS_REVENUE' | 'ADS_COST'.
+    // Idempotent: deletes and re-inserts ADS rows. Never touches IMPORT/SUBSCRIPTION.
+    // Runs after SUBSCRIPTION auto-gen so the AR table is complete before reconciliation.
+    {
+      const { data: adsResult, error: adsErr } = await supabase
+        .rpc("generate_ads_billing", { p_period_label: period_label });
+
+      if (adsErr) {
+        // Non-fatal: log and continue. If google_ads_spend has no data yet for this
+        // period, the ADS clients will reconcile as MISSING_PAYMENT — which is correct
+        // (ingest-google-ads hasn't run yet on their billing_day_one).
+        console.warn(
+          `[reconcile-period] generate_ads_billing warning for "${period_label}": ${adsErr.message}`,
+        );
+      } else if (adsResult && !adsResult.ok) {
+        console.warn(
+          `[reconcile-period] generate_ads_billing partial errors for "${period_label}":`,
+          JSON.stringify(adsResult.errors),
+        );
+      } else {
+        console.log(
+          `[reconcile-period] generate_ads_billing: ${adsResult?.rows_inserted ?? 0} rows inserted, ` +
+          `${adsResult?.rows_deleted ?? 0} deleted for "${period_label}"`,
+        );
+      }
+    }
+
     // Load all data in parallel
     const [{ data: arRows }, { data: chargeRows }, { data: clientRows }] = await Promise.all([
       supabase.from("expected_charges")
