@@ -15,8 +15,13 @@
 **0.1 — ADR `docs/decisions/0005-google-ads-billing-generation.md`**
 Architectural change: new data source (Google Ads), new billing method, expected_charges
 generated from campaign data. Must capture:
-- New `billing_method = 'ADS_AUTO'` (vs existing `AD_SPEND` manual xlsx and `SUBSCRIPTION`).
-- Revenue base rule: `conversion_value_by_conv_time`, or `cost` when `custom_rule = 'use_cost'`.
+- Two new `billing_method` values replacing `ADS_AUTO` + `custom_rule`:
+    - `ADS_REVENUE` — Google Ads API, formula uses `conversion_value_by_conv_time`
+    - `ADS_COST`    — Google Ads API, formula uses campaign `cost` (spend)
+  Existing methods unchanged: `AD_SPEND` (manual xlsx, direct amount no formula),
+  `SUBSCRIPTION` (flat fee from `projection_amount`). No `custom_rule` field needed.
+- Formula for both ADS variants: `total_bill = base_fee + revenue_base * billing_percentage / 100`
+  where `revenue_base` = conversion_value (ADS_REVENUE) or cost (ADS_COST).
 - Channel grouping: Shopping/Video/PMax/Display = "shopping bucket"; Search separate.
 - Campaign filters: name must contain `'ED |'`; exclude Brand Search (ILIKE `'%Brand%'` and
   not `'%Non%Brand%'`); drop campaigns with cost=0 AND conv_value=0.
@@ -83,8 +88,8 @@ Money as `numeric`, never TEXT (fixes legacy `client_bfs` flaw). Anon SELECT pol
 **1.2 — Client config columns**
 - `clients.google_id text NULL` (join key to Ads).
 - On `client_billing_plans`: `billing_percentage numeric(5,2)`, `base_fee numeric(12,2)`,
-  `billing_day_one smallint DEFAULT 1`, `custom_rule text NULL` (`'use_cost'`),
-  and extend `billing_method` check to allow `'ADS_AUTO'`.
+  `billing_day_one smallint DEFAULT 1`, and extend `billing_method` check constraint to allow
+  `'ADS_REVENUE'` and `'ADS_COST'`. No `custom_rule` column — the method encodes everything.
 - Recreate `client_active_plans` view with explicit columns (known Postgres `SELECT *` landmine).
 
 **1.3 — `expected_charges` provenance**
