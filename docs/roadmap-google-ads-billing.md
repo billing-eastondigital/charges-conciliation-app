@@ -181,7 +181,7 @@ clients before merging.
 
 ---
 
-## Phase 5 — UI ← NEXT
+## Phase 5 — UI ✅ COMPLETE (2026-06-12)
 
 **5.1 — Billing tab rework** (`app/(dashboard)/billing/`)
 From in-memory editable table → reads `expected_charges` + `billing_detail` for the selected
@@ -201,7 +201,7 @@ Show google_id + ads-billing config on the header card; campaign history section
 
 ---
 
-## Phase 6 — Cutover & validation
+## Phase 6 — Cutover & validation ← NEXT
 
 1. **Parallel month**: run one full month with both systems (legacy RDS + recon) and diff
    `billing_app_final_report.total_bill` vs `expected_charges.expected_amount` per stripe_id.
@@ -253,8 +253,8 @@ clients is worse than doing it manually.
 | 2 Backfill + plan UI | 1 | M | ✅ |
 | 3 ingest-google-ads | 1, 0.3 | M | ✅ validated 2026-06-12 |
 | 4 Calculation → expected_charges | 2, 3 | L | ✅ validated 2026-06-12 |
-| 5 UI | 4 | M | ← NEXT |
-| 6 Parallel run + cutover | 5 | M (calendar-bound: one full month) | pending |
+| 5 UI | 4 | M | ✅ 2026-06-12 |
+| 6 Parallel run + cutover | 5 | M (calendar-bound: one full month) | ← NEXT |
 | 7 Make.com invoice automation | 6 | M | future |
 
 Critical path: 0 → 1 → 3 → 4. Phase 2 UI and Phase 5 can overlap with neighbors.
