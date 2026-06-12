@@ -118,23 +118,30 @@ Extend Plan Management (admin/periods + clients page) Edit/Set-up dialogs with: 
 
 ## Phase 3 — Ingestion: `ingest-google-ads` edge function
 
-Modeled on `ingest-stripe`:
+**Ingestion pattern — runs ONCE per client per billing cycle, not daily accumulation.**
+Google Ads may adjust conversion attribution up until the last day of the period. Fetching
+on `billing_day_one` guarantees the window is closed and numbers are final. The daily cron
+simply checks "which clients have their billing_day_one = today?" and runs only those.
+This matches the legacy script behavior exactly (`if billing_day_one != today: continue`).
+
+Implementation:
 1. Input: `{ period_label: "auto" | "June 2026" }` → resolves the target period (= the period
    where expected_charges will land). For each client, the campaign window is derived from
    `billing_day_one`: if day=1 → previous full calendar month; if day=N → from day N of
    previous month to day N-1 of current month. Timezone: America/Los_Angeles.
-   The function runs daily via cron; it only processes clients whose `billing_day_one` matches
-   today's date in LA time (same pattern as the legacy script).
-2. For each client with `billing_method = 'ADS_AUTO'` and non-null `google_id` and active plan:
+2. For each client with `billing_method IN ('ADS_REVENUE','ADS_COST')` and non-null `google_id`
+   and active plan whose `billing_day_one` = today:
    call `GET {GADS_API_URL}/api/metrics/campaign-performance?customerId&startDate&endDate`
    (X-API-Key header; strip dashes from google_id).
-3. Map channelType codes (2=Search, 3=Display, 4=Shopping, 6=Video, 10=PMax) and apply the
-   campaign filters (`'ED |'` prefix, drop zero-activity rows). **Note**: Brand-Search exclusion
-   happens at calculation time (Phase 4), not ingest — store everything, exclude when computing
-   (forensic rule 3 analog: never silently drop source rows).
-4. Upsert into `google_ads_campaigns` (idempotent via the unique constraint).
-5. Per-client try/catch — one failing account must not abort the run (legacy behavior, keep it).
-6. Response shape mirroring `ingest-stripe` (`{ ok, period_label, accounts: {...}, inserted }`).
+3. Map channelType codes (2=Search, 3=Display, 4=Shopping, 6=Video, 10=PMax). Store ALL
+   campaigns including Brand Search and zero-activity rows — filtering happens at calculation
+   time (Phase 4), never at ingest (forensic rule: never silently drop source rows).
+4. Upsert into `google_ads_campaigns` (idempotent via the unique constraint). Data is fixed
+   after this point — no subsequent updates for the same window.
+5. Per-client try/catch — one failing account must not abort the run.
+6. Immediately trigger Phase 4 calculation for the processed clients (same pattern as
+   `ingest-stripe` → `reconcile-period`).
+7. Response shape: `{ ok, period_label, clients_processed: N, inserted: N, skipped: N }`.
 
 **Cron**: extend the daily `sync-stripe-daily` chain or add `sync-gads-daily` (separate is safer);
 schedule respecting billing_day_one logic — simplest: run daily, function itself decides which
