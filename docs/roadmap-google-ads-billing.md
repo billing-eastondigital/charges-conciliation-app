@@ -26,18 +26,26 @@ generated from campaign data. Must capture:
 - Campaign filters: name must contain `'ED |'`; exclude Brand Search (ILIKE `'%Brand%'` and
   not `'%Non%Brand%'`); drop campaigns with cost=0 AND conv_value=0.
 - Formula: `total_bill = google_bf + shopping_rev * pct/100 + search_rev * pct/100`.
-- Billing window: per-client `billing_day_one` (day 1 → previous full calendar month;
-  day N → from day N of previous month to day N-1 of current month, ~30 days).
-  Timezone America/Los_Angeles. **RESOLVED**: `expected_charges.period` = the month when
-  billing executes (current month = when the Stripe charge lands), NOT the campaign window month.
-  A day-20 client running June 20 with May 20–Jun 19 campaigns → expected_charge in "June 2026".
-  The campaign window is metadata only (stored in `billing_detail` jsonb + `google_ads_campaigns`).
+- **Two day fields — different roles**:
+  - `billing_day_one` = **Google Day**: the exact day that triggers ingestion + calculation.
+    Only two values in practice: 1 or 20. For SUBSCRIPTION clients, this is also the charge day.
+  - `billing_day_two` = **Estimated charge window**: informational only — the charge lands
+    within a few days after the Google Day (e.g. day 1 Google Day → charge arrives by day 5).
+    Does NOT drive any automation logic in recon.
+- Billing window (ADS clients): Google Day 1 → previous full calendar month; Google Day 20 →
+  day 20 of previous month to day 19 of current month. Timezone America/Los_Angeles.
+- **RESOLVED — period attribution**: `expected_charges.period` = month of the Google Day
+  (= month when the Stripe charge lands — the short charge window never crosses month boundary).
+  A day-20 client running June 20 → expected_charge in "June 2026".
+  Campaign window is metadata only (stored in `billing_detail` jsonb + `google_ads_campaigns`).
 
 **0.2 — Confirmed with owner (no longer blocking)**
 - ✅ Single `billing_percentage` for Shopping AND Search — confirmed, keep simple.
 - ✅ `custom_rule = 'use_cost'` exists but rare (e.g. KTM) — modeled as per-client flag in billing plan.
-- ✅ Non-day-1 clients exist — Batch 3 uses day 20. Full window logic must be preserved.
-- ✅ Period attribution — confirmed: `expected_charges.period` = month billing executes (see above).
+- ✅ Non-day-1 clients exist — Batch 3 uses day 20. Only two Google Day values in practice: 1 and 20.
+- ✅ Period attribution — confirmed: `expected_charges.period` = month of Google Day execution.
+- ✅ `billing_day_two` is informational only (estimated charge window, ~5 days after Google Day).
+  No automation logic needed. For SUBSCRIPTION, `billing_day_one` is the exact charge day.
 
 **0.3 — What to request from the developer (blocking)**
 
