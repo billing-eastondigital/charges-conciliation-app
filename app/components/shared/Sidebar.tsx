@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   AlertCircle,
   BarChart3,
+  BarChart2,
   Calendar,
   CreditCard,
   FileText,
@@ -65,6 +66,12 @@ export function Sidebar({ currentPeriod }: SidebarProps) {
       href: "/billing",
       icon: Table2,
       match: "/billing",
+    },
+    {
+      label: "Ads",
+      href: "/ads",
+      icon: BarChart2,
+      match: "/ads",
     },
     {
       label: "Stripe",

@@ -16,7 +16,6 @@ export default async function BillingPage({ searchParams }: Props) {
 
   const periods = periodsRows ?? [];
 
-  // Default to most recent open period that has billing rows (skips auto-created empty periods)
   let defaultPeriod = periods[0]?.period_label ?? "";
   if (!period) {
     const { data: billedRows } = await supabase
@@ -35,12 +34,15 @@ export default async function BillingPage({ searchParams }: Props) {
   const { data: rows } = await supabase
     .from("expected_charges")
     .select(
-      "id, account_name, stripe_id, primary_email, batch, billing_plan, billing_pct, " +
-      "google_shopping_charge, google_search_charge, bing_charge, base_fee, other_charge, " +
-      "expected_amount, source_row_index"
+      "id, account_name, stripe_id, primary_email, batch, " +
+      "expected_amount, source, billing_detail, " +
+      // Legacy IMPORT columns
+      "google_shopping_charge, google_search_charge, bing_charge, " +
+      "base_fee, other_charge, billing_pct, source_row_index"
     )
     .eq("period_label", selectedPeriod)
-    .order("source_row_index");
+    .order("source")
+    .order("account_name");
 
   return (
     <BillingPageClient

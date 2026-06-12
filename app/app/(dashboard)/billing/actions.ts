@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-type EditableField =
+// Only IMPORT rows are editable — ADS and SUBSCRIPTION are auto-generated
+type ImportEditableField =
   | "account_name" | "stripe_id" | "primary_email" | "batch"
-  | "billing_plan" | "billing_pct"
   | "google_shopping_charge" | "google_search_charge"
-  | "bing_charge" | "base_fee" | "other_charge" | "expected_amount";
+  | "bing_charge" | "base_fee" | "other_charge"
+  | "billing_pct" | "expected_amount";
 
 const NUMERIC_FIELDS = new Set([
   "billing_pct", "google_shopping_charge", "google_search_charge",
@@ -16,10 +17,21 @@ const NUMERIC_FIELDS = new Set([
 
 export async function updateExpectedCharge(
   id: number,
-  field: EditableField,
+  field: ImportEditableField,
   rawValue: string,
 ) {
   const supabase = await createClient();
+
+  // Guard: only allow editing IMPORT rows
+  const { data: row } = await supabase
+    .from("expected_charges")
+    .select("source")
+    .eq("id", id)
+    .single();
+
+  if (row?.source !== "IMPORT") {
+    throw new Error("Only IMPORT rows can be edited manually.");
+  }
 
   let value: string | number | null;
   if (rawValue.trim() === "") {
