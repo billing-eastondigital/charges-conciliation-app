@@ -65,7 +65,7 @@ function TotalsRow({ rows, label, prevCollectedMap }: {
   const totalPrev = prevCollectedMap
     ? rows.reduce((s, r) => s + (prevCollectedMap.get(r.stripe_id) ?? 0), 0)
     : null;
-  const m1Delta = totalPrev !== null ? totalExp - totalPrev : null;
+  const m1Delta = totalPrev !== null ? totalCol - totalPrev : null;
   const m1Pct   = totalPrev !== null && totalPrev > 0.005 ? (m1Delta! / totalPrev) * 100 : null;
 
   return (
@@ -125,7 +125,7 @@ function DataRows({ rows, prevCollectedMap }: {
         const varPct    = expected > 0.005 ? (variance / expected) * 100 : null;
 
         const prevCollected = prevCollectedMap ? (prevCollectedMap.get(row.stripe_id) ?? null) : undefined;
-        const m1Delta = prevCollected != null ? expected - prevCollected : null;
+        const m1Delta = prevCollected != null ? collected - prevCollected : null;
         const m1Pct   = prevCollected != null && prevCollected > 0.005 ? (m1Delta! / prevCollected) * 100 : null;
 
         return (
@@ -368,7 +368,7 @@ export function ReconTable({ results, prevCollectedMap }: ReconTableProps) {
               {prevCollectedMap && (
                 <>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">M-1 Collected</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">Expected vs M-1</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wide whitespace-nowrap">Δ Collected</th>
                 </>
               )}
             </tr>
