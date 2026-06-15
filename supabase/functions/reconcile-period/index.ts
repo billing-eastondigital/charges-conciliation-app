@@ -243,9 +243,9 @@ Deno.serve(async (req) => {
     if (period.is_closed) return json({ error: `Period "${period_label}" is closed` }, 409);
 
     // ── Auto-generate expected_charges for SUBSCRIPTION clients ──────────────
-    // Uses client_active_plans view (plans active as of today). Any subscription
-    // client whose plan is currently active will get an expected_charge row
-    // inserted if one doesn't already exist for this period.
+    // Idempotent: deletes existing SUBSCRIPTION rows + any IMPORT rows for
+    // SUBSCRIPTION clients, then re-inserts from projection_amount.
+    // Mirrors the ADS pattern so the cron always reflects the current plan.
     {
       const { data: subClients } = await supabase
         .from("client_active_plans")
@@ -264,35 +264,41 @@ Deno.serve(async (req) => {
       if (activeSubClients && activeSubClients.length > 0) {
         const subStripeIds = activeSubClients.map((c) => c.stripe_id as string);
 
-        const { data: existing } = await supabase
+        // Delete existing SUBSCRIPTION rows (idempotent re-run)
+        const { error: delSubErr } = await supabase
           .from("expected_charges")
-          .select("stripe_id")
+          .delete()
           .eq("period_label", period_label)
+          .eq("source", "SUBSCRIPTION");
+        if (delSubErr) throw delSubErr;
+
+        // Delete IMPORT rows for SUBSCRIPTION clients — auto-gen supersedes xlsx upload
+        const { error: delImportErr } = await supabase
+          .from("expected_charges")
+          .delete()
+          .eq("period_label", period_label)
+          .eq("source", "IMPORT")
           .in("stripe_id", subStripeIds);
+        if (delImportErr) throw delImportErr;
 
-        const alreadyHasCharge = new Set((existing ?? []).map((r) => r.stripe_id as string));
+        const toInsert = activeSubClients.map((c) => ({
+          period_label,
+          stripe_id:       c.stripe_id,
+          account_name:    c.display_name,
+          primary_email:   c.primary_email,
+          batch:           c.batch,
+          source:          "SUBSCRIPTION",
+          expected_amount: c.projection_amount != null
+            ? Number(c.projection_amount).toFixed(4)
+            : "0.0000",
+          billing_plan: c.billing_plan,
+          billing_pct:  c.billing_pct,
+        }));
 
-        const toInsert = activeSubClients
-          .filter((c) => !alreadyHasCharge.has(c.stripe_id as string))
-          .map((c) => ({
-            period_label,
-            stripe_id:       c.stripe_id,
-            account_name:    c.display_name,
-            primary_email:   c.primary_email,
-            batch:           c.batch,
-            expected_amount: c.projection_amount != null
-              ? Number(c.projection_amount).toFixed(4)
-              : "0.0000",
-            billing_plan: c.billing_plan,
-            billing_pct:  c.billing_pct,
-          }));
-
-        if (toInsert.length > 0) {
-          const { error: autoInsertErr } = await supabase
-            .from("expected_charges")
-            .insert(toInsert);
-          if (autoInsertErr) throw autoInsertErr;
-        }
+        const { error: autoInsertErr } = await supabase
+          .from("expected_charges")
+          .insert(toInsert);
+        if (autoInsertErr) throw autoInsertErr;
       }
     }
 
