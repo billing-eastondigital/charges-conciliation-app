@@ -36,7 +36,7 @@ export default async function BillingPage({ searchParams }: Props) {
     .select(
       "id, account_name, stripe_id, primary_email, batch, " +
       "expected_amount, source, billing_detail, " +
-      // Legacy IMPORT columns
+      "ready_for_billing, invoice_url, invoice_status, " +
       "google_shopping_charge, google_search_charge, bing_charge, " +
       "base_fee, other_charge, billing_pct, source_row_index"
     )

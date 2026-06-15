@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-// Only IMPORT rows are editable — ADS and SUBSCRIPTION are auto-generated
 type ImportEditableField =
   | "account_name" | "stripe_id" | "primary_email" | "batch"
   | "google_shopping_charge" | "google_search_charge"
@@ -22,7 +21,6 @@ export async function updateExpectedCharge(
 ) {
   const supabase = await createClient();
 
-  // Guard: only allow editing IMPORT rows
   const { data: row } = await supabase
     .from("expected_charges")
     .select("source")
@@ -49,6 +47,16 @@ export async function updateExpectedCharge(
     .update({ [field]: value })
     .eq("id", id);
 
+  if (error) throw error;
+  revalidatePath("/billing");
+}
+
+export async function toggleReadyForBilling(id: number, value: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("expected_charges")
+    .update({ ready_for_billing: value })
+    .eq("id", id);
   if (error) throw error;
   revalidatePath("/billing");
 }
