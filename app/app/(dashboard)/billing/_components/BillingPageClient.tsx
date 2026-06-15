@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMoney } from "@/lib/format";
@@ -201,6 +201,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
   const [errorIds, setErrorIds] = useState<Map<number, string>>(new Map());
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [groupByBatch, setGroupByBatch] = useState(true);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
 
@@ -286,15 +287,225 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
 
   const grandTotal = filtered.reduce((s, r) => s + Number(r.expected_amount ?? 0), 0);
 
+  const BATCH_ORDER = ["1","2","3","SUBSCRIPTION","5","Consulting","Multiple","—"];
+  const availableBatches = BATCH_ORDER.filter((b) => filtered.some((r) => (r.batch ?? "—") === b));
+  const grouped = groupByBatch
+    ? availableBatches
+        .map((b) => ({ batch: b, rows: filtered.filter((r) => (r.batch ?? "—") === b) }))
+        .filter(({ rows }) => rows.length > 0)
+    : null;
+
   // Column widths
   const W = {
     exp: 24, account: 190, source: 72, base: 85,
     shopRev: 105, pct: 52, searchRev: 105,
     bingRev: 90, dfw: 75, total: 105,
-    memo: 160, ready: 54, invoice: 110,
+    memo: 160, ready: 54, invoice: 110, ads: 42,
   };
 
-  const TOTAL_COLS = 13; // for colspan
+  const TOTAL_COLS = 14; // for colspan
+
+  const renderRow = (row: ExpectedChargeRow) => {
+    const saving   = savingIds.has(row.id);
+    const saved    = savedIds.has(row.id);
+    const err      = errorIds.get(row.id);
+    const isImport = row.source === "IMPORT";
+    const isAds    = row.source === "ADS_REVENUE" || row.source === "ADS_COST";
+    const isSub    = row.source === "SUBSCRIPTION";
+    const expanded = expandedIds.has(row.id);
+    const hasItems = !!row.billing_detail?.line_items?.length;
+    const dv = getDisplayValues(row);
+    const bgBase = err ? "#fef2f2" : saved ? "#f0fdf4" : saving ? "#eff6ff" : "white";
+    const editProps = { isClosed, editingCell, editValue, onStartEdit: startEdit, onCommit: commitEdit, onCancel: cancelEdit, onEditChange: setEditValue };
+
+    return (
+      <Fragment key={row.id}>
+        <tr
+          className={cn(
+            "group border-b border-[#eeeeee]",
+            err ? "bg-red-50" : saved ? "bg-green-50" : saving ? "bg-blue-50/40" : "bg-white hover:bg-[#fafafa]"
+          )}
+        >
+          {/* Expand toggle */}
+          <td
+            className="border-x border-[#eeeeee] text-center"
+            style={{ position: "sticky", left: 0, zIndex: 10, backgroundColor: bgBase }}
+          >
+            {hasItems ? (
+              <button
+                onClick={() => toggleExpand(row.id)}
+                className="w-full h-full flex items-center justify-center text-[#9ca3af] hover:text-[#3a3a3a] py-1.5"
+              >
+                {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              </button>
+            ) : null}
+          </td>
+
+          {/* Account */}
+          <td
+            className="px-2 py-1.5 border-x border-[#eeeeee] overflow-hidden text-xs font-medium border-r-2 border-r-[#dddddd]"
+            style={{ position: "sticky", left: W.exp, zIndex: 10, backgroundColor: bgBase }}
+          >
+            <span
+              onClick={() => isImport && startEdit(row.id, "account_name", row.account_name)}
+              className={cn(
+                "truncate block rounded-[2px] px-0.5",
+                isImport && !isClosed ? "cursor-pointer hover:bg-blue-50" : "cursor-default"
+              )}
+              title={row.account_name}
+            >
+              {row.account_name}
+            </span>
+          </td>
+
+          {/* Source */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
+            <SourceBadge source={row.source} />
+          </td>
+
+          {/* Base Fee */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <MoneyDisplay val={dv.baseFee ?? null} editable={isImport} id={row.id} field="base_fee" {...editProps} />}
+          </td>
+
+          {/* Shopping Rev */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <MoneyDisplay val={dv.shoppingRev ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
+          </td>
+
+          {/* % */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
+            {dv.pct != null
+              ? <span
+                  className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                  onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
+                >
+                  {dv.pct}%
+                </span>
+              : <span className="text-[#c8c8c8]">—</span>}
+          </td>
+
+          {/* Search Rev */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <MoneyDisplay val={dv.searchRev ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
+          </td>
+
+          {/* Bing Rev */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+          </td>
+
+          {/* Bing % */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
+            {dv.bingPct != null && dv.bingPct > 0
+              ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
+              : <span className="text-[#c8c8c8]">—</span>}
+          </td>
+
+          {/* DFW */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <MoneyDisplay val={dv.dfw > 0 ? dv.dfw : null} editable={isImport} id={row.id} field="other_charge" {...editProps} />}
+          </td>
+
+          {/* Total */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            <MoneyDisplay val={Number(row.expected_amount)} editable={isImport} id={row.id} field="expected_amount" {...editProps} />
+          </td>
+
+          {/* Memo */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-[#6b7280] truncate max-w-0">
+            <span className="truncate block" title={dv.memo ?? undefined}>
+              {dv.memo ?? <span className="text-[#c8c8c8]">—</span>}
+            </span>
+          </td>
+
+          {/* ✓ Ready */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
+            <input
+              type="checkbox"
+              checked={row.ready_for_billing}
+              disabled={isClosed}
+              onChange={() => handleReadyToggle(row.id, row.ready_for_billing)}
+              className="w-3.5 h-3.5 accent-[#0170B9] cursor-pointer disabled:cursor-default"
+              title={row.ready_for_billing ? "Ready for billing" : "Mark as ready"}
+            />
+          </td>
+
+          {/* Invoice */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
+            {saving && <div className="w-3 h-3 border-2 border-[#0170B9] border-t-transparent rounded-full animate-spin mx-auto" />}
+            {saved  && <CheckCircle2 size={12} className="text-green-600 mx-auto" />}
+            {err    && <span title={err}><AlertCircle size={12} className="text-red-500 mx-auto" /></span>}
+            {!saving && !saved && !err && (
+              <div className="flex flex-col items-center gap-0.5">
+                {row.invoice_url ? (
+                  <>
+                    {row.invoice_status && <InvoiceStatusBadge status={row.invoice_status} />}
+                    <a
+                      href={row.invoice_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#0170B9] hover:text-blue-800"
+                      title="Open Stripe invoice"
+                    >
+                      <ExternalLink size={11} />
+                    </a>
+                  </>
+                ) : row.ready_for_billing ? (
+                  <span className="text-[10px] text-amber-600 font-medium">Pending</span>
+                ) : null}
+              </div>
+            )}
+          </td>
+
+          {/* Ads campaigns link */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
+            {isAds && row.billing_detail?.google_customer_id && (
+              <Link
+                href={`/ads?period=${encodeURIComponent(selectedPeriod)}&customer=${row.billing_detail.google_customer_id}`}
+                className="text-[#0170B9] hover:text-blue-800 flex items-center justify-center"
+                title="View campaigns"
+              >
+                <ExternalLink size={11} />
+              </Link>
+            )}
+          </td>
+        </tr>
+
+        {/* Expanded line items sub-row */}
+        {expanded && hasItems && (
+          <tr className="bg-[#f8faff] border-b border-[#dddddd]">
+            <td />
+            <td colSpan={TOTAL_COLS} className="px-4 py-2">
+              <p className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wide mb-1.5">
+                Invoice line items
+              </p>
+              <div className="flex flex-col gap-1">
+                {row.billing_detail!.line_items!.map((item, i) => (
+                  <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
+                    <span className="text-[#4B4F58] flex-1">{item.text}</span>
+                    <span className="font-mono text-[#3a3a3a] font-medium shrink-0">
+                      {formatMoney(String(item.amount))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    );
+  };
 
   return (
     <div>
@@ -339,6 +550,16 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
             <option value="ADS_REVENUE">Ads Revenue</option>
             <option value="ADS_COST">Ads Cost</option>
           </select>
+          <button
+            onClick={() => setGroupByBatch((v) => !v)}
+            className={`text-xs px-3 py-1.5 rounded-[2px] border transition-colors ${
+              groupByBatch
+                ? "bg-[#3a3a3a] text-white border-[#3a3a3a]"
+                : "bg-white text-[#4B4F58] border-[#dddddd] hover:border-[#3a3a3a]"
+            }`}
+          >
+            By Batch
+          </button>
         </div>
       </div>
 
@@ -377,6 +598,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
               <col style={{ width: W.memo,      minWidth: W.memo }} />
               <col style={{ width: W.ready,     minWidth: W.ready }} />
               <col style={{ width: W.invoice,   minWidth: W.invoice }} />
+              <col style={{ width: W.ads,       minWidth: W.ads }} />
             </colgroup>
 
             <thead>
@@ -397,6 +619,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                   { label: "Memo",        align: "left" },
                   { label: "✓ Ready",     align: "center" },
                   { label: "Invoice",     align: "center" },
+                  { label: "Ads",         align: "center" },
                 ].map((h, i) => (
                   <th
                     key={i}
@@ -417,204 +640,18 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
             </thead>
 
             <tbody>
-              {filtered.map((row) => {
-                const saving  = savingIds.has(row.id);
-                const saved   = savedIds.has(row.id);
-                const err     = errorIds.get(row.id);
-                const isImport = row.source === "IMPORT";
-                const isAds    = row.source === "ADS_REVENUE" || row.source === "ADS_COST";
-                const isSub    = row.source === "SUBSCRIPTION";
-                const expanded = expandedIds.has(row.id);
-                const hasItems = !!row.billing_detail?.line_items?.length;
-                const dv = getDisplayValues(row);
-                const bgBase = err ? "#fef2f2" : saved ? "#f0fdf4" : saving ? "#eff6ff" : "white";
-
-                const editProps = { isClosed, editingCell, editValue, onStartEdit: startEdit, onCommit: commitEdit, onCancel: cancelEdit, onEditChange: setEditValue };
-
-                return (
-                  <>
-                    <tr
-                      key={row.id}
-                      className={cn(
-                        "group border-b border-[#eeeeee]",
-                        err ? "bg-red-50" : saved ? "bg-green-50" : saving ? "bg-blue-50/40" : "bg-white hover:bg-[#fafafa]"
-                      )}
-                    >
-                      {/* Expand toggle */}
-                      <td
-                        className="border-x border-[#eeeeee] text-center"
-                        style={{ position: "sticky", left: 0, zIndex: 10, backgroundColor: bgBase }}
-                      >
-                        {hasItems ? (
-                          <button
-                            onClick={() => toggleExpand(row.id)}
-                            className="w-full h-full flex items-center justify-center text-[#9ca3af] hover:text-[#3a3a3a] py-1.5"
-                          >
-                            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          </button>
-                        ) : null}
-                      </td>
-
-                      {/* Account */}
-                      <td
-                        className="px-2 py-1.5 border-x border-[#eeeeee] overflow-hidden text-xs font-medium border-r-2 border-r-[#dddddd]"
-                        style={{ position: "sticky", left: W.exp, zIndex: 10, backgroundColor: bgBase }}
-                      >
-                        <span
-                          onClick={() => isImport && startEdit(row.id, "account_name", row.account_name)}
-                          className={cn(
-                            "truncate block rounded-[2px] px-0.5",
-                            isImport && !isClosed ? "cursor-pointer hover:bg-blue-50" : "cursor-default"
-                          )}
-                          title={row.account_name}
-                        >
-                          {row.account_name}
-                        </span>
-                      </td>
-
-                      {/* Source */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
-                        <SourceBadge source={row.source} />
-                      </td>
-
-                      {/* Base Fee */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        {isSub
-                          ? <span className="text-[#c8c8c8] block text-right">—</span>
-                          : <MoneyDisplay val={dv.baseFee ?? null} editable={isImport} id={row.id} field="base_fee" {...editProps} />}
-                      </td>
-
-                      {/* Shopping Rev */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        {isSub
-                          ? <span className="text-[#c8c8c8] block text-right">—</span>
-                          : <MoneyDisplay val={dv.shoppingRev ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
-                      </td>
-
-                      {/* % (shared for shopping + search) */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-                        {dv.pct != null
-                          ? <span
-                              className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
-                              onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
-                            >
-                              {dv.pct}%
-                            </span>
-                          : <span className="text-[#c8c8c8]">—</span>}
-                      </td>
-
-                      {/* Search Rev */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        {isSub
-                          ? <span className="text-[#c8c8c8] block text-right">—</span>
-                          : <MoneyDisplay val={dv.searchRev ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
-                      </td>
-
-                      {/* Bing Rev */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        {isSub
-                          ? <span className="text-[#c8c8c8] block text-right">—</span>
-                          : <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
-                      </td>
-
-                      {/* Bing % */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-                        {dv.bingPct != null && dv.bingPct > 0
-                          ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
-                          : <span className="text-[#c8c8c8]">—</span>}
-                      </td>
-
-                      {/* DFW */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        {isSub
-                          ? <span className="text-[#c8c8c8] block text-right">—</span>
-                          : <MoneyDisplay val={dv.dfw > 0 ? dv.dfw : null} editable={isImport} id={row.id} field="other_charge" {...editProps} />}
-                      </td>
-
-                      {/* Total */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-                        <MoneyDisplay val={Number(row.expected_amount)} editable={isImport} id={row.id} field="expected_amount" {...editProps} />
-                      </td>
-
-                      {/* Memo */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-[#6b7280] truncate max-w-0">
-                        <span className="truncate block" title={dv.memo ?? undefined}>
-                          {dv.memo ?? <span className="text-[#c8c8c8]">—</span>}
-                        </span>
-                      </td>
-
-                      {/* ✓ Ready */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
-                        <input
-                          type="checkbox"
-                          checked={row.ready_for_billing}
-                          disabled={isClosed}
-                          onChange={() => handleReadyToggle(row.id, row.ready_for_billing)}
-                          className="w-3.5 h-3.5 accent-[#0170B9] cursor-pointer disabled:cursor-default"
-                          title={row.ready_for_billing ? "Ready for billing" : "Mark as ready"}
-                        />
-                      </td>
-
-                      {/* Invoice */}
-                      <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
-                        {saving && <div className="w-3 h-3 border-2 border-[#0170B9] border-t-transparent rounded-full animate-spin mx-auto" />}
-                        {saved  && <CheckCircle2 size={12} className="text-green-600 mx-auto" />}
-                        {err    && <span title={err}><AlertCircle size={12} className="text-red-500 mx-auto" /></span>}
-                        {!saving && !saved && !err && (
-                          <div className="flex flex-col items-center gap-0.5">
-                            {row.invoice_url ? (
-                              <>
-                                {row.invoice_status && <InvoiceStatusBadge status={row.invoice_status} />}
-                                <a
-                                  href={row.invoice_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[#0170B9] hover:text-blue-800"
-                                  title="Open Stripe invoice"
-                                >
-                                  <ExternalLink size={11} />
-                                </a>
-                              </>
-                            ) : row.ready_for_billing ? (
-                              <span className="text-[10px] text-amber-600 font-medium">Pending</span>
-                            ) : isAds && row.billing_detail?.google_customer_id ? (
-                              <Link
-                                href={`/ads?period=${encodeURIComponent(selectedPeriod)}&customer=${row.billing_detail.google_customer_id}`}
-                                className="text-[#0170B9] hover:text-blue-800"
-                                title="View campaigns"
-                              >
-                                <ExternalLink size={11} />
-                              </Link>
-                            ) : null}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* Expanded line items sub-row */}
-                    {expanded && hasItems && (
-                      <tr key={`${row.id}-items`} className="bg-[#f8faff] border-b border-[#dddddd]">
-                        <td /> {/* expand col */}
-                        <td colSpan={TOTAL_COLS} className="px-4 py-2">
-                          <p className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wide mb-1.5">
-                            Invoice line items
-                          </p>
-                          <div className="flex flex-col gap-1">
-                            {row.billing_detail!.line_items!.map((item, i) => (
-                              <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
-                                <span className="text-[#4B4F58] flex-1">{item.text}</span>
-                                <span className="font-mono text-[#3a3a3a] font-medium shrink-0">
-                                  {formatMoney(String(item.amount))}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
+              {groupByBatch && grouped && grouped.map(({ batch, rows: batchRows }) => (
+                <Fragment key={`group-${batch}`}>
+                  <tr className="bg-[#3a3a3a]">
+                    <td colSpan={TOTAL_COLS + 1} className="px-4 py-1.5">
+                      <span className="text-xs font-semibold text-white uppercase tracking-wider">Batch {batch}</span>
+                      <span className="text-xs text-[#aaa] ml-2">· {batchRows.length} client{batchRows.length !== 1 ? "s" : ""}</span>
+                    </td>
+                  </tr>
+                  {batchRows.map((row) => renderRow(row))}
+                </Fragment>
+              ))}
+              {(!groupByBatch || !grouped) && filtered.map((row) => renderRow(row))}
 
               {filtered.length === 0 && (
                 <tr>
@@ -640,8 +677,8 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                   <td className="px-2 py-2 border-x border-[#dddddd] text-right font-mono">
                     {formatMoney(grandTotal)}
                   </td>
-                  {/* memo, ready, invoice */}
-                  {Array.from({ length: 3 }).map((_, i) => (
+                  {/* memo, ready, invoice, ads */}
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <td key={i} className="border-x border-[#dddddd]" />
                   ))}
                 </tr>
