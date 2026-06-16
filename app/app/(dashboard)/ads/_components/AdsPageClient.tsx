@@ -195,6 +195,7 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
           <table style={{ tableLayout: "fixed", borderCollapse: "collapse", width: "max-content" }}>
             <colgroup>
               <col style={{ width: 180, minWidth: 180 }} /> {/* Client */}
+              <col style={{ width: 120, minWidth: 120 }} /> {/* Google ID */}
               <col style={{ width: 300, minWidth: 300 }} /> {/* Campaign */}
               <col style={{ width: 80,  minWidth: 80  }} /> {/* Channel */}
               <col style={{ width: 72,  minWidth: 72  }} /> {/* Billable */}
@@ -210,6 +211,7 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
               <tr className="border-b border-[#dddddd] bg-[#F5F5F5] sticky top-0 z-20">
                 {[
                   { label: "Client",      align: "left",   sticky: true },
+                  { label: "Google ID",   align: "left",   sticky: false },
                   { label: "Campaign",    align: "left",   sticky: false },
                   { label: "Channel",     align: "center", sticky: false },
                   { label: "Billable",    align: "center", sticky: false },
@@ -253,6 +255,11 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                     title={row.client_name}
                   >
                     {row.client_name}
+                  </td>
+
+                  {/* Google ID */}
+                  <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs font-mono text-[#6b7280]">
+                    {row.google_ads_customer_id}
                   </td>
 
                   {/* Campaign */}
@@ -309,7 +316,7 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-sm text-[#9ca3af]">
+                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-[#9ca3af]">
                     No campaigns match the current filters.
                   </td>
                 </tr>
@@ -326,6 +333,7 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                   >
                     {filtered.length} rows
                   </td>
+                  <td className="px-2 py-2 border-x border-[#dddddd]" />
                   <td className="px-2 py-2 border-x border-[#dddddd]" />
                   <td className="px-2 py-2 border-x border-[#dddddd]" />
                   <td className="px-2 py-2 border-x border-[#dddddd]" />
