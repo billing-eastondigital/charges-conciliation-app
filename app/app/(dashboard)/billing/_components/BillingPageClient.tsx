@@ -112,27 +112,43 @@ function getDisplayValues(row: ExpectedChargeRow) {
   const d = row.billing_detail ?? {};
   const isAds = row.source === "ADS_REVENUE" || row.source === "ADS_COST";
 
-  const shoppingRev = isAds
-    ? (row.source === "ADS_REVENUE" ? d.shopping_revenue : d.shopping_cost)
-    : row.google_shopping_charge;
+  // Raw revenue/cost per channel (only meaningful for ADS rows)
+  const shoppingRaw = isAds
+    ? (row.source === "ADS_REVENUE" ? (d.shopping_revenue ?? 0) : (d.shopping_cost ?? 0))
+    : null;
+  const searchRaw = isAds
+    ? (row.source === "ADS_REVENUE" ? (d.search_revenue ?? 0) : (d.search_cost ?? 0))
+    : null;
+  const bingRaw = isAds ? (d.bing_revenue ?? 0) : null;
 
-  const searchRev = isAds
-    ? (row.source === "ADS_REVENUE" ? d.search_revenue : d.search_cost)
-    : row.google_search_charge;
+  const pctDecimal = isAds ? (d.billing_pct ?? 0) : (row.billing_pct ?? 0) / 100;
+  const pct        = pctDecimal * 100;  // display as e.g. 2
 
-  const bingRev  = isAds ? (d.bing_revenue ?? 0) : (row.bing_charge ?? 0);
-  const bingPct  = isAds ? (d.bing_percent != null ? d.bing_percent * 100 : null) : null;
+  // Fee per channel = raw × pct. For IMPORT rows the stored value IS already the fee.
+  const shoppingFee = isAds
+    ? Math.round((shoppingRaw ?? 0) * pctDecimal * 100) / 100
+    : (row.google_shopping_charge ?? null);
+  const searchFee = isAds
+    ? Math.round((searchRaw ?? 0) * pctDecimal * 100) / 100
+    : (row.google_search_charge ?? null);
+  const bingFee = isAds
+    ? Math.round((bingRaw ?? 0) * pctDecimal * 100) / 100
+    : (row.bing_charge ?? 0);
+
+  const bingPct  = isAds ? pct : null;
   const dfw      = isAds ? (d.dfw ?? 0) : (row.other_charge ?? 0);
-  const baseFee  = isAds ? d.base_fee : row.base_fee;
-  const pct      = isAds
-    ? (d.billing_pct != null ? d.billing_pct * 100 : null)
-    : row.billing_pct;
+  const baseFee  = isAds ? (d.base_fee ?? null) : (row.base_fee ?? null);
 
-  const memo = isAds
-    ? (d.memo ?? null)
-    : `${row.account_name} ${null}`;  // IMPORT has no memo — shown as derived
+  const memo = isAds ? (d.memo ?? null) : null;
 
-  return { baseFee, shoppingRev, searchRev, bingRev, bingPct, dfw, pct, memo, lineItems: d.line_items };
+  return {
+    baseFee,
+    shoppingRaw, shoppingFee,
+    searchRaw,   searchFee,
+    bingRaw,     bingFee,
+    bingPct, dfw, pct, memo,
+    lineItems: d.line_items,
+  };
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────
@@ -394,57 +410,63 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
               : <MoneyDisplay val={dv.baseFee ?? null} editable={isImport} id={row.id} field="base_fee" {...editProps} />}
           </td>
 
-          {/* Shopping Rev */}
-          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-            {isSub
-              ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : <MoneyDisplay val={dv.shoppingRev ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
-          </td>
-
-          {/* % */}
-          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-            {dv.pct != null
-              ? <span
-                  className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
-                  onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
-                >
-                  {dv.pct}%
-                </span>
-              : <span className="text-[#c8c8c8]">—</span>}
-          </td>
-
-          {/* Search Rev */}
-          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-            {isSub
-              ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : <MoneyDisplay val={dv.searchRev ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
-          </td>
-
-          {/* Search % — same rate as Shopping */}
-          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-            {isSub
-              ? <span className="text-[#c8c8c8]">—</span>
-              : dv.pct != null
-                ? <span className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
-                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}>
-                    {dv.pct}%
-                  </span>
-                : <span className="text-[#c8c8c8]">—</span>}
-          </td>
-
-          {/* Bing Rev */}
+          {/* Shopping — fee = shoppingRaw × pct. For IMPORT the stored value is already the fee. */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
             {isSub
               ? <span className="text-[#c8c8c8] block text-right">—</span>
               : isAds
-                ? <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable id={row.id} field="bing_revenue" {...editProps} />
-                : <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+                ? <span className="font-mono tabular-nums block text-right text-[#3a3a3a]">
+                    {dv.shoppingFee ? formatMoney(dv.shoppingFee) : <span className="text-[#c8c8c8]">—</span>}
+                  </span>
+                : <MoneyDisplay val={dv.shoppingFee ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
           </td>
 
-          {/* Bing % — auto-calculated from billing_percentage for ADS rows */}
+          {/* Shop % */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-            {isAds && dv.bingRev > 0
-              ? <span className="font-mono tabular-nums text-[#6b7280]">{((row.billing_detail?.billing_pct ?? 0) * 100).toFixed(2)}%</span>
+            {isSub ? <span className="text-[#c8c8c8]">—</span>
+              : dv.pct != null
+                ? <span
+                    className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
+                  >{dv.pct}%</span>
+                : <span className="text-[#c8c8c8]">—</span>}
+          </td>
+
+          {/* Search — fee = searchRaw × pct */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : isAds
+                ? <span className="font-mono tabular-nums block text-right text-[#3a3a3a]">
+                    {dv.searchFee ? formatMoney(dv.searchFee) : <span className="text-[#c8c8c8]">—</span>}
+                  </span>
+                : <MoneyDisplay val={dv.searchFee ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
+          </td>
+
+          {/* Search % */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
+            {isSub ? <span className="text-[#c8c8c8]">—</span>
+              : dv.pct != null
+                ? <span
+                    className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
+                  >{dv.pct}%</span>
+                : <span className="text-[#c8c8c8]">—</span>}
+          </td>
+
+          {/* Bing — editable raw revenue for ADS; fee shown via tooltip/expansion */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub
+              ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : isAds
+                ? <MoneyDisplay val={(dv.bingRaw ?? 0) > 0 ? (dv.bingRaw ?? null) : null} editable id={row.id} field="bing_revenue" {...editProps} />
+                : <MoneyDisplay val={dv.bingFee > 0 ? dv.bingFee : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+          </td>
+
+          {/* Bing % */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
+            {isAds && (dv.bingRaw ?? 0) > 0
+              ? <span className="font-mono tabular-nums text-[#6b7280]">{dv.pct.toFixed(2)}%</span>
               : dv.bingPct != null && dv.bingPct > 0
                 ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
                 : <span className="text-[#c8c8c8]">—</span>}
