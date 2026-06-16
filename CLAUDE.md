@@ -69,11 +69,12 @@ pg_cron 08:00 UTC
 ```
 
 `reconcile-period` also runs the following before reconciling:
-- Queries `client_active_plans` for all `billing_method = 'SUBSCRIPTION'` clients
-- Inserts missing `expected_charges` rows for the period using `projection_amount`
+- **SUBSCRIPTION**: deletes+reinserts `expected_charges` from `projection_amount` for all `billing_method = 'SUBSCRIPTION'` clients (idempotent)
+- **ADS**: calls `generate_ads_billing()` which deletes+reinserts from `google_ads_spend` for all `billing_method IN ('ADS_REVENUE','ADS_COST')` clients (idempotent)
+- **IMPORT rows cleanup**: auto-deletes any IMPORT rows for SUB/ADS clients before reinserting
 - Then runs normal reconciliation
 
-This means subscription clients flow through the period, annual, audit, and exception pages automatically — no billing xlsx upload needed each month.
+This means subscription and ADS clients flow through automatically — no billing xlsx upload needed each month.
 
 **Response shape from `ingest-stripe`:**
 ```json
@@ -97,9 +98,15 @@ If no billing sheet has been uploaded, `auto_reconcile.current` = `{ ok: false, 
 |---|---|
 | `AD_SPEND` (default) | Expected charge comes from the billing xlsx uploaded via `/admin/import` each month |
 | `SUBSCRIPTION` | Flat fee auto-generated from `projection_amount` at reconcile time — no monthly import needed |
+| `ADS_REVENUE` | Fee = `base_fee` + `billing_percentage` × Google Shopping+Search revenue (by conversion time) |
+| `ADS_COST` | Fee = `base_fee` + `billing_percentage` × Google Shopping+Search cost |
 
 Set via Admin → Plan Management → Edit or Set up plan → Billing Method.
 Back-fill rule: clients with `batch = 'SUBSCRIPTION'` were automatically set to `billing_method = 'SUBSCRIPTION'` in migration `20260605000001`.
+
+**Multi-account ADS clients**: additional Google Ads customer IDs stored in `client_platform_ids.other_ids->'google_ads_additional_customer_ids'` (jsonb array). Both `ingest-google-ads` and `generate_ads_billing` process ALL IDs and sum spend across accounts. Example: `cus_MAQFq6FlG4sGc3` has primary `4631988316` + additional `8378921672`.
+
+**ADS revenue metric**: `conversionValueByConversionTime` — NOT `conversionValue`. The API returns both; only `ByConversionTime` matches what Google Ads UI shows. Using click-time attribution causes systematic undercount.
 
 ---
 
