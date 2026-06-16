@@ -6,7 +6,7 @@ import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Search, Info, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { updateExpectedCharge, toggleReadyForBilling } from "../actions";
+import { updateExpectedCharge, updateAdsBillingDetail, toggleReadyForBilling } from "../actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,9 @@ type ImportEditableField =
   | "google_shopping_charge" | "google_search_charge"
   | "bing_charge" | "base_fee" | "other_charge"
   | "billing_pct" | "expected_amount";
+
+type AdsEditableField = "bing_revenue" | "dfw";
+type AnyEditableField = ImportEditableField | AdsEditableField;
 
 // ── Source badge ───────────────────────────────────────────────────────────
 
@@ -150,11 +153,11 @@ function MoneyDisplay({
   val: number | null | undefined;
   editable: boolean;
   id: number;
-  field: ImportEditableField;
+  field: AnyEditableField;
   isClosed: boolean;
-  editingCell: { id: number; field: ImportEditableField } | null;
+  editingCell: { id: number; field: AnyEditableField } | null;
   editValue: string;
-  onStartEdit: (id: number, field: ImportEditableField, v: unknown) => void;
+  onStartEdit: (id: number, field: AnyEditableField, v: unknown) => void;
   onCommit: () => void;
   onCancel: () => void;
   onEditChange: (v: string) => void;
@@ -195,7 +198,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
   const [isPending, startTransition] = useTransition();
 
   const [rows, setRows] = useState(initialRows);
-  const [editingCell, setEditingCell] = useState<{ id: number; field: ImportEditableField } | null>(null);
+  const [editingCell, setEditingCell] = useState<{ id: number; field: AnyEditableField } | null>(null);
   const [editValue, setEditValue] = useState("");
   const [savingIds, setSavingIds] = useState<Set<number>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
@@ -218,10 +221,13 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
     return true;
   });
 
-  function startEdit(id: number, field: ImportEditableField, currentVal: unknown) {
+  const ADS_EDITABLE = new Set<AnyEditableField>(["bing_revenue", "dfw"]);
+
+  function startEdit(id: number, field: AnyEditableField, currentVal: unknown) {
     if (isClosed) return;
     const row = rows.find((r) => r.id === id)!;
-    if (row.source !== "IMPORT") return;
+    const isAds = row.source === "ADS_REVENUE" || row.source === "ADS_COST";
+    if (row.source !== "IMPORT" && !(isAds && ADS_EDITABLE.has(field))) return;
     setEditingCell({ id, field });
     setEditValue(currentVal === null || currentVal === undefined ? "" : String(currentVal));
   }
@@ -248,9 +254,14 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
     setEditingCell(null);
     setSavingIds((s) => new Set([...s, id]));
     setErrorIds((m) => { const n = new Map(m); n.delete(id); return n; });
+    const isAdsField = ADS_EDITABLE.has(field);
     startTransition(async () => {
       try {
-        await updateExpectedCharge(id, field, raw);
+        if (isAdsField) {
+          await updateAdsBillingDetail(id, field as AdsEditableField, raw);
+        } else {
+          await updateExpectedCharge(id, field as ImportEditableField, raw);
+        }
         setSavingIds((s) => { const n = new Set(s); n.delete(id); return n; });
         setSavedIds((s) => new Set([...s, id]));
         setTimeout(() => setSavedIds((s) => { const n = new Set(s); n.delete(id); return n; }), 2000);
@@ -400,21 +411,27 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
             {isSub
               ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+              : isAds
+                ? <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable id={row.id} field="bing_revenue" {...editProps} />
+                : <MoneyDisplay val={dv.bingRev > 0 ? dv.bingRev : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
           </td>
 
-          {/* Bing % */}
+          {/* Bing % — auto-calculated from billing_percentage for ADS rows */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-            {dv.bingPct != null && dv.bingPct > 0
-              ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
-              : <span className="text-[#c8c8c8]">—</span>}
+            {isAds && dv.bingRev > 0
+              ? <span className="font-mono tabular-nums text-[#6b7280]">{((row.billing_detail?.billing_pct ?? 0) * 100).toFixed(2)}%</span>
+              : dv.bingPct != null && dv.bingPct > 0
+                ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
+                : <span className="text-[#c8c8c8]">—</span>}
           </td>
 
           {/* DFW */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
             {isSub
               ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : <MoneyDisplay val={dv.dfw > 0 ? dv.dfw : null} editable={isImport} id={row.id} field="other_charge" {...editProps} />}
+              : isAds
+                ? <MoneyDisplay val={dv.dfw > 0 ? dv.dfw : null} editable id={row.id} field="dfw" {...editProps} />
+                : <MoneyDisplay val={dv.dfw > 0 ? dv.dfw : null} editable={isImport} id={row.id} field="other_charge" {...editProps} />}
           </td>
 
           {/* Total */}
