@@ -38,13 +38,21 @@ const SEARCH_EXCLUSIONS = new Set([
 
 const SHOPPING_CHANNEL_TYPES = new Set([3, 4, 6, 10]); // Display, Shopping, Video, PMax
 
+// Only campaigns managed by Easton Digital are billable — must contain "ED |" in the name.
+// Catches: "ED | ...", "PMax: ED | ...", "ED  | ..." (double-space typos).
+function isEdCampaign(name: string): boolean {
+  return /ED\s+\|/i.test(name);
+}
+
 function getBillableStatus(campaign_name: string, channel_type: number): { billable: boolean; reason: string | null } {
   if (SHOPPING_CHANNEL_TYPES.has(channel_type)) {
     if (SHOPPING_EXCLUSIONS.has(campaign_name)) return { billable: false, reason: "Brand exclusion (Shopping)" };
+    if (!isEdCampaign(campaign_name)) return { billable: false, reason: "Non-ED campaign" };
     return { billable: true, reason: null };
   }
   if (channel_type === 2) {
     if (SEARCH_EXCLUSIONS.has(campaign_name)) return { billable: false, reason: "Brand exclusion (Search)" };
+    if (!isEdCampaign(campaign_name)) return { billable: false, reason: "Non-ED campaign" };
     return { billable: true, reason: null };
   }
   return { billable: false, reason: "Channel not billed" };
