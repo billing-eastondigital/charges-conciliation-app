@@ -3,8 +3,96 @@
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
-import { useState, useTransition } from "react";
+import { ChevronDown, Search, X } from "lucide-react";
+import { useState, useTransition, useRef, useEffect } from "react";
+
+// ── Combobox ───────────────────────────────────────────────────────────────
+
+interface ComboboxOption { value: string; label: string }
+
+function Combobox({
+  value, onChange, options, placeholder, width = 160,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  width?: number;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selected = options.find((o) => o.value === value);
+  const displayQuery = open ? query : (selected?.label ?? "");
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(query.toLowerCase())
+  );
+
+  function select(v: string) {
+    onChange(v);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} className="relative" style={{ width }}>
+      <div className={cn(
+        "flex items-center border rounded-[2px] bg-white",
+        open ? "border-[#0170B9]" : "border-[#dddddd]"
+      )}>
+        <input
+          value={displayQuery}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => { setQuery(""); setOpen(true); }}
+          placeholder={placeholder}
+          className="flex-1 min-w-0 px-2.5 py-1.5 text-sm bg-transparent focus:outline-none"
+        />
+        {value ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); select(""); }}
+            className="px-1.5 text-[#9ca3af] hover:text-[#6b7280]"
+            tabIndex={-1}
+          >
+            <X size={12} />
+          </button>
+        ) : (
+          <span className="px-1.5 text-[#9ca3af]"><ChevronDown size={12} /></span>
+        )}
+      </div>
+      {open && (
+        <div className="absolute z-50 top-full mt-0.5 left-0 right-0 bg-white border border-[#dddddd] rounded-[2px] shadow-sm max-h-52 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-[#9ca3af]">No results</div>
+          ) : (
+            filtered.map((o) => (
+              <button
+                key={o.value}
+                onMouseDown={(e) => { e.preventDefault(); select(o.value); }}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-sm hover:bg-[#F5F5F5]",
+                  o.value === value && "bg-blue-50 text-[#0170B9] font-medium"
+                )}
+              >
+                {o.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -138,30 +226,29 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
             </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Period */}
-            <select
+            {/* Period combobox */}
+            <Combobox
               value={selectedPeriod}
-              onChange={(e) => navigate(e.target.value, selectedCustomer)}
-              className="px-3 py-1.5 text-sm border border-[#dddddd] rounded-[2px] bg-white focus:outline-none focus:border-[#0170B9]"
-            >
-              {periods.map((p) => (
-                <option key={p.period_label} value={p.period_label}>
-                  {p.period_label}{p.is_closed ? " (closed)" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => navigate(v || selectedPeriod, selectedCustomer)}
+              options={periods.map((p) => ({
+                value: p.period_label,
+                label: p.period_label + (p.is_closed ? " (closed)" : ""),
+              }))}
+              placeholder="Period…"
+              width={148}
+            />
 
-            {/* Customer */}
-            <select
+            {/* Customer combobox */}
+            <Combobox
               value={selectedCustomer}
-              onChange={(e) => navigate(selectedPeriod, e.target.value)}
-              className="px-3 py-1.5 text-sm border border-[#dddddd] rounded-[2px] bg-white focus:outline-none focus:border-[#0170B9]"
-            >
-              <option value="">All clients</option>
-              {customerOptions.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={(v) => navigate(selectedPeriod, v)}
+              options={[
+                { value: "", label: "All clients" },
+                ...customerOptions.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              placeholder="All clients"
+              width={180}
+            />
 
             {/* Search */}
             <div className="relative">
