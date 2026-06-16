@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdsPageClient, type AdsSpendRow, type CustomerOption } from "./_components/AdsPageClient";
+import { setCampaignOverride } from "./actions";
 
 interface Props {
   searchParams: Promise<{ period?: string; customer?: string }>;
@@ -111,6 +112,21 @@ export default async function AdsPage({ searchParams }: Props) {
     name: customerIdToName.get(id) ?? id,
   }));
 
+  // Fetch manual overrides for the selected period
+  const { data: overrideRows } = await supabase
+    .from("google_ads_campaign_overrides")
+    .select("google_ads_customer_id, campaign_id, excluded, reason")
+    .eq("period_label", selectedPeriod);
+
+  // Build a quick lookup: "customerId:campaignId" → { excluded, reason }
+  const overrideMap = new Map<string, { excluded: boolean; reason: string | null }>();
+  for (const o of overrideRows ?? []) {
+    overrideMap.set(`${o.google_ads_customer_id}:${o.campaign_id}`, {
+      excluded: o.excluded,
+      reason: o.reason,
+    });
+  }
+
   // Fetch spend rows
   const baseQuery = supabase
     .from("google_ads_spend")
@@ -134,15 +150,19 @@ export default async function AdsPage({ searchParams }: Props) {
     cost_usd: number; conversions: number; conversion_value: number; fetched_at: string;
   };
 
-  // Enrich with billable status + display names
+  // Enrich with billable status + display names + manual overrides
   const rows: AdsSpendRow[] = ((spendRows ?? []) as unknown as RawSpendRow[]).map((r) => {
-    const { billable, reason } = getBillableStatus(r.campaign_name, r.channel_type);
+    const { billable: systemBillable, reason: systemReason } = getBillableStatus(r.campaign_name, r.channel_type);
+    const override = overrideMap.get(`${r.google_ads_customer_id}:${r.campaign_id}`);
+    const manuallyExcluded = systemBillable && (override?.excluded ?? false);
     return {
       ...r,
       client_name: customerIdToName.get(r.google_ads_customer_id) ?? r.google_ads_customer_id,
       channel_label: CHANNEL_LABELS[r.channel_type] ?? `Type ${r.channel_type}`,
-      billable,
-      exclusion_reason: reason,
+      billable: systemBillable && !manuallyExcluded,
+      system_billable: systemBillable,
+      manually_excluded: manuallyExcluded,
+      exclusion_reason: manuallyExcluded ? (override?.reason ?? "Manual override") : systemReason,
     };
   });
 
@@ -153,6 +173,7 @@ export default async function AdsPage({ searchParams }: Props) {
       selectedPeriod={selectedPeriod}
       selectedCustomer={customer ?? ""}
       customerOptions={customerOptions}
+      onToggleOverride={setCampaignOverride}
     />
   );
 }

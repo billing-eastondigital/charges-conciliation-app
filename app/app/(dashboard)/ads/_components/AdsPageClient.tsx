@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,8 @@ export interface AdsSpendRow {
   conversion_value: number;
   fetched_at: string;
   billable: boolean;
+  system_billable: boolean;
+  manually_excluded: boolean;
   exclusion_reason: string | null;
 }
 
@@ -39,6 +41,13 @@ interface Props {
   selectedPeriod: string;
   selectedCustomer: string;
   customerOptions: CustomerOption[];
+  onToggleOverride: (
+    periodLabel: string,
+    customerId: string,
+    campaignId: string,
+    excluded: boolean,
+    reason: string | null
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 // ── Channel badge ──────────────────────────────────────────────────────────
@@ -62,10 +71,32 @@ function ChannelBadge({ label }: { label: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer, customerOptions }: Props) {
+export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer, customerOptions, onToggleOverride }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [billableFilter, setBillableFilter] = useState<"all" | "billable" | "excluded">("all");
+  const [pending, startTransition] = useTransition();
+  // Track which row IDs are currently being toggled for optimistic loading state
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+
+  function handleToggle(row: AdsSpendRow) {
+    if (!row.system_billable) return; // can't override system-excluded campaigns
+    setTogglingIds((prev) => new Set(prev).add(row.id));
+    startTransition(async () => {
+      await onToggleOverride(
+        row.period_label,
+        row.google_ads_customer_id,
+        row.campaign_id,
+        !row.manually_excluded,
+        !row.manually_excluded ? "Manual override" : null
+      );
+      setTogglingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+    });
+  }
 
   function navigate(period: string, customer: string) {
     const params = new URLSearchParams();
@@ -84,8 +115,9 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
     return true;
   });
 
-  // Summary stats
+  // Summary stats (billable = system-billable AND not manually excluded)
   const billableRows = rows.filter((r) => r.billable);
+  const manuallyExcludedCount = rows.filter((r) => r.manually_excluded).length;
   const totalCost = rows.reduce((s, r) => s + Number(r.cost_usd), 0);
   const totalRevenue = rows.reduce((s, r) => s + Number(r.conversion_value), 0);
   const billableCost = billableRows.reduce((s, r) => s + Number(r.cost_usd), 0);
@@ -100,6 +132,9 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
             <h1 className="text-xl font-semibold text-[#3a3a3a]">Google Ads Spend</h1>
             <p className="text-sm text-[#6b7280] mt-0.5">
               {rows.length} campaigns · {billableRows.length} billable · {rows.length - billableRows.length} excluded
+              {manuallyExcludedCount > 0 && (
+                <span className="ml-1 text-amber-600">({manuallyExcludedCount} manual)</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -245,7 +280,8 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                   key={row.id}
                   className={cn(
                     "border-b border-[#eeeeee] hover:bg-[#fafafa]",
-                    !row.billable && "opacity-60"
+                    !row.billable && !row.manually_excluded && "opacity-60",
+                    row.manually_excluded && "opacity-70 bg-amber-50/30"
                   )}
                 >
                   {/* Client */}
@@ -272,11 +308,26 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                     <ChannelBadge label={row.channel_label} />
                   </td>
 
-                  {/* Billable */}
+                  {/* Billable — clickable for system-billable campaigns to toggle manual exclusion */}
                   <td className="px-2 py-1.5 border-x border-[#eeeeee] text-center">
-                    {row.billable
-                      ? <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Billable" />
-                      : <span className="inline-block w-2 h-2 rounded-full bg-[#dddddd]" title="Excluded" />}
+                    {row.system_billable ? (
+                      <button
+                        onClick={() => handleToggle(row)}
+                        disabled={togglingIds.has(row.id) || pending}
+                        title={row.manually_excluded ? "Click to re-enable billing" : "Click to exclude from billing"}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded hover:bg-[#F5F5F5] disabled:opacity-50 transition-colors"
+                      >
+                        {togglingIds.has(row.id) ? (
+                          <span className="inline-block w-2 h-2 rounded-full bg-[#cccccc] animate-pulse" />
+                        ) : row.manually_excluded ? (
+                          <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title="Manually excluded" />
+                        ) : (
+                          <span className="inline-block w-2 h-2 rounded-full bg-green-500" title="Billable" />
+                        )}
+                      </button>
+                    ) : (
+                      <span className="inline-block w-2 h-2 rounded-full bg-[#dddddd]" title="Excluded (system rule)" />
+                    )}
                   </td>
 
                   {/* Impressions */}
