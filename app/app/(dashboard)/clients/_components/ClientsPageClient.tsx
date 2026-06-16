@@ -17,6 +17,27 @@ import { updateClientInfo, addClientPlan, updateClientPlan, changeClientPlan, de
 import { EditPlanDialog } from "../../admin/periods/_components/EditPlanDialog";
 import { ChangePlanDialog } from "../../admin/periods/_components/ChangePlanDialog";
 
+// ── Billing method badge ─────────────────────────────────────────
+const METHOD_LABEL: Record<string, string> = {
+  SUBSCRIPTION: "Sub",
+  ADS_REVENUE:  "Ads Rev",
+  ADS_COST:     "Ads Cost",
+  AD_SPEND:     "Import",
+};
+const METHOD_STYLE: Record<string, string> = {
+  SUBSCRIPTION: "bg-purple-50 text-purple-700 border-purple-200",
+  ADS_REVENUE:  "bg-blue-50 text-blue-700 border-blue-200",
+  ADS_COST:     "bg-orange-50 text-orange-700 border-orange-200",
+  AD_SPEND:     "bg-gray-50 text-gray-600 border-gray-200",
+};
+function BillingMethodBadge({ method }: { method: string }) {
+  return (
+    <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-sm border", METHOD_STYLE[method] ?? METHOD_STYLE.AD_SPEND)}>
+      {METHOD_LABEL[method] ?? method}
+    </span>
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────
 type Tab = "directory" | "history";
 
@@ -533,9 +554,9 @@ function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
                     <td className="px-4 py-2.5 max-w-[200px]">
                       {plan ? (
                         <>
-                          <p className="text-[#3a3a3a] truncate" title={plan.billing_plan}>{plan.billing_plan}</p>
+                          <BillingMethodBadge method={plan.billing_method ?? "AD_SPEND"} />
                           <p className="text-[10px] text-[#9ca3af] mt-0.5">
-                            {plan.billing_pct > 0 ? `${plan.billing_pct}%` : plan.projection_amount != null ? `$${plan.projection_amount.toLocaleString()}` : "—"}
+                            {(plan.billing_percentage ?? 0) > 0 ? `${((plan.billing_percentage ?? 0) * 100).toFixed(2)}%` : plan.projection_amount != null ? `$${plan.projection_amount.toLocaleString()}` : "—"}
                           </p>
                         </>
                       ) : <span className="text-[#cccccc]">—</span>}
@@ -636,7 +657,7 @@ function ClientHistoryCard({ client: c, period, type }: { client: ClientRecord; 
             {isWon ? c.start_date : c.deactivated_month}
           </span>
         </span>
-        {plan && <span className="text-[10px] text-[#9ca3af]">Plan: <span className="text-[#4B4F58]">{plan.billing_plan}</span></span>}
+        {plan && <BillingMethodBadge method={plan.billing_method ?? "AD_SPEND"} />}
         <span className="text-[10px] text-[#9ca3af]">Period: <span className="text-[#4B4F58]">{period}</span></span>
       </div>
     </div>

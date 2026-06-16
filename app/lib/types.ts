@@ -58,7 +58,8 @@ export interface ClientBillingPlan {
   billing_details: string | null;  // full pricing description
   /** How the expected charge is produced each period */
   billing_method: BillingMethod;
-  billing_pct: number;             // % of ad revenue on top of base fee (0 = flat only)
+  billing_pct: number;             // legacy 2dp field — use billing_percentage instead
+  billing_percentage?: number;     // canonical 4dp percentage (0.02 = 2%)
   billing_day: number | null;      // day of month for invoicing (1–31)
   notes: string | null;
   projection_type: ProjectionType;
