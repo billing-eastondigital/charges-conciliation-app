@@ -87,22 +87,24 @@ export default async function AdsPage({ searchParams }: Props) {
   const uniqueCustomerIds = [...new Set((customerRows ?? []).map((r) => r.google_ads_customer_id))];
 
   // Resolve customer IDs → display names via client_platform_ids
-  const { data: platformIds } = await supabase
+  // Must also scan other_ids.google_ads_additional_customer_ids for multi-account clients
+  const { data: allPlatformIds } = await supabase
     .from("client_platform_ids")
-    .select("google_ads_customer_id, stripe_id")
-    .in("google_ads_customer_id", uniqueCustomerIds);
+    .select("google_ads_customer_id, stripe_id, other_ids");
 
   const { data: clients } = await supabase
     .from("clients")
     .select("stripe_id, display_name");
 
   const clientMap = new Map((clients ?? []).map((c) => [c.stripe_id, c.display_name]));
-  const customerIdToName = new Map(
-    (platformIds ?? []).map((p) => [
-      p.google_ads_customer_id,
-      clientMap.get(p.stripe_id) ?? p.google_ads_customer_id,
-    ])
-  );
+  const customerIdToName = new Map<string, string>();
+  for (const p of allPlatformIds ?? []) {
+    const name = clientMap.get(p.stripe_id) ?? p.stripe_id;
+    if (p.google_ads_customer_id) customerIdToName.set(p.google_ads_customer_id, name);
+    const additional: string[] = (p.other_ids as { google_ads_additional_customer_ids?: string[] } | null)
+      ?.google_ads_additional_customer_ids ?? [];
+    for (const id of additional) customerIdToName.set(id, name);
+  }
 
   const customerOptions: CustomerOption[] = uniqueCustomerIds.map((id) => ({
     id,

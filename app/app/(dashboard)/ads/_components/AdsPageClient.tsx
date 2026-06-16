@@ -201,9 +201,9 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
               <col style={{ width: 72,  minWidth: 72  }} /> {/* Billable */}
               <col style={{ width: 90,  minWidth: 90  }} /> {/* Impressions */}
               <col style={{ width: 70,  minWidth: 70  }} /> {/* Clicks */}
-              <col style={{ width: 100, minWidth: 100 }} /> {/* Cost */}
               <col style={{ width: 60,  minWidth: 60  }} /> {/* Conv */}
               <col style={{ width: 120, minWidth: 120 }} /> {/* Conv Value */}
+              <col style={{ width: 100, minWidth: 100 }} /> {/* Cost */}
               <col style={{ width: 180, minWidth: 180 }} /> {/* Exclusion */}
             </colgroup>
 
@@ -217,9 +217,9 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                   { label: "Billable",    align: "center", sticky: false },
                   { label: "Impressions", align: "right",  sticky: false },
                   { label: "Clicks",      align: "right",  sticky: false },
-                  { label: "Cost",        align: "right",  sticky: false },
                   { label: "Conv",        align: "right",  sticky: false },
                   { label: "Conv Value",  align: "right",  sticky: false, important: true },
+                  { label: "Cost",        align: "right",  sticky: false },
                   { label: "Excl. Reason",align: "left",   sticky: false },
                 ].map((h, i) => (
                   <th
@@ -289,11 +289,6 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                     {row.clicks.toLocaleString()}
                   </td>
 
-                  {/* Cost */}
-                  <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right font-mono">
-                    {formatMoney(String(row.cost_usd))}
-                  </td>
-
                   {/* Conversions */}
                   <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right font-mono text-[#6b7280]">
                     {Number(row.conversions).toFixed(1)}
@@ -305,6 +300,11 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                     row.billable ? "text-[#3a3a3a]" : "text-[#9ca3af]"
                   )}>
                     {formatMoney(String(row.conversion_value))}
+                  </td>
+
+                  {/* Cost */}
+                  <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right font-mono text-[#6b7280]">
+                    {formatMoney(String(row.cost_usd))}
                   </td>
 
                   {/* Exclusion reason */}
@@ -344,13 +344,13 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
                     {filtered.reduce((s, r) => s + r.clicks, 0).toLocaleString()}
                   </td>
                   <td className="px-2 py-2 border-x border-[#dddddd] text-right font-mono">
-                    {formatMoney(String(filtered.reduce((s, r) => s + Number(r.cost_usd), 0)))}
-                  </td>
-                  <td className="px-2 py-2 border-x border-[#dddddd] text-right font-mono">
                     {filtered.reduce((s, r) => s + Number(r.conversions), 0).toFixed(1)}
                   </td>
                   <td className="px-2 py-2 border-x border-[#dddddd] text-right font-mono text-[#3a3a3a]">
                     {formatMoney(String(filtered.reduce((s, r) => s + Number(r.conversion_value), 0)))}
+                  </td>
+                  <td className="px-2 py-2 border-x border-[#dddddd] text-right font-mono">
+                    {formatMoney(String(filtered.reduce((s, r) => s + Number(r.cost_usd), 0)))}
                   </td>
                   <td className="px-2 py-2 border-x border-[#dddddd]" />
                 </tr>
