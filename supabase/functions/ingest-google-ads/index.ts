@@ -40,9 +40,10 @@ interface GAdsCampaign {
   status: number;
   clicks: number;
   impressions: number;
-  cost: number;           // USD float
+  cost: number;                           // USD float — ad spend
   conversions: number;
-  conversionValue: number; // USD float
+  conversionValue: number;                // by click time (unused)
+  conversionValueByConversionTime: number; // by conversion time — used for billing
 }
 
 interface GAdsResponse {
@@ -269,7 +270,7 @@ Deno.serve(async (req) => {
             clicks:                 c.clicks,
             cost_usd:               c.cost,
             conversions:            c.conversions,
-            conversion_value:       c.conversionValue,
+            conversion_value:       c.conversionValueByConversionTime,
             fetched_at:             new Date().toISOString(),
           }));
 
