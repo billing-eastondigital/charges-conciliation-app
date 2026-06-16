@@ -60,6 +60,7 @@ interface ActivePlan {
   billing_day_one: number | null;
   base_fee: number;
   billing_percentage: number;
+  other_ids: { google_ads_additional_customer_ids?: string[] } | null;
 }
 
 // ── Date helpers (America/Los_Angeles) ────────────────────────────────────────
@@ -213,7 +214,7 @@ Deno.serve(async (req) => {
     // and whose billing_day_one = today's day (LA timezone), or the override day for testing
     const { data: plans, error: plansErr } = await supabase
       .from("client_active_plans")
-      .select("stripe_id, google_ads_customer_id, billing_method, billing_day_one, base_fee, billing_percentage")
+      .select("stripe_id, google_ads_customer_id, billing_method, billing_day_one, base_fee, billing_percentage, other_ids")
       .in("billing_method", ["ADS_REVENUE", "ADS_COST"])
       .not("google_ads_customer_id", "is", null)
       .eq("billing_day_one", billingDay);
@@ -233,64 +234,68 @@ Deno.serve(async (req) => {
     let totalInserted = 0;
 
     for (const plan of duePlans) {
-      const customerId = plan.google_ads_customer_id!;
+      // Build list: primary ID first, then any additional IDs from other_ids
+      const additionalIds: string[] = plan.other_ids?.google_ads_additional_customer_ids ?? [];
+      const allCustomerIds = [plan.google_ads_customer_id!, ...additionalIds];
 
-      try {
-        const { startDate, endDate } = campaignWindow(plan.billing_day_one!, today);
+      for (const customerId of allCustomerIds) {
+        try {
+          const { startDate, endDate } = campaignWindow(plan.billing_day_one!, today);
 
-        const campaigns = await fetchCampaigns(apiUrl, apiKey, customerId, startDate, endDate);
+          const campaigns = await fetchCampaigns(apiUrl, apiKey, customerId, startDate, endDate);
 
-        // Idempotent: delete existing rows for this (period, customer) then re-insert
-        const { error: deleteErr } = await supabase
-          .from("google_ads_spend")
-          .delete()
-          .eq("period_label", periodLabel)
-          .eq("google_ads_customer_id", customerId);
+          // Idempotent: delete existing rows for this (period, customer) then re-insert
+          const { error: deleteErr } = await supabase
+            .from("google_ads_spend")
+            .delete()
+            .eq("period_label", periodLabel)
+            .eq("google_ads_customer_id", customerId);
 
-        if (deleteErr) throw new Error(`Delete failed: ${deleteErr.message}`);
+          if (deleteErr) throw new Error(`Delete failed: ${deleteErr.message}`);
 
-        if (campaigns.length === 0) {
-          results.push({ stripe_id: plan.stripe_id, google_ads_customer_id: customerId, ok: true, inserted: 0 });
-          continue;
+          if (campaigns.length === 0) {
+            results.push({ stripe_id: plan.stripe_id, google_ads_customer_id: customerId, ok: true, inserted: 0 });
+            continue;
+          }
+
+          const rows = campaigns.map((c) => ({
+            period_label:           periodLabel,
+            google_ads_customer_id: customerId,
+            campaign_id:            String(c.id),
+            campaign_name:          c.name,
+            channel_type:           c.channelType,
+            campaign_status:        c.status,
+            impressions:            c.impressions,
+            clicks:                 c.clicks,
+            cost_usd:               c.cost,
+            conversions:            c.conversions,
+            conversion_value:       c.conversionValue,
+            fetched_at:             new Date().toISOString(),
+          }));
+
+          const { error: insertErr } = await supabase
+            .from("google_ads_spend")
+            .insert(rows);
+
+          if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
+
+          totalInserted += rows.length;
+          results.push({
+            stripe_id: plan.stripe_id,
+            google_ads_customer_id: customerId,
+            ok: true,
+            inserted: rows.length,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[ingest-google-ads] Failed for ${plan.stripe_id} (${customerId}): ${msg}`);
+          results.push({
+            stripe_id: plan.stripe_id,
+            google_ads_customer_id: customerId,
+            ok: false,
+            error: msg,
+          });
         }
-
-        const rows = campaigns.map((c) => ({
-          period_label:           periodLabel,
-          google_ads_customer_id: customerId,
-          campaign_id:            String(c.id),
-          campaign_name:          c.name,
-          channel_type:           c.channelType,
-          campaign_status:        c.status,
-          impressions:            c.impressions,
-          clicks:                 c.clicks,
-          cost_usd:               c.cost,
-          conversions:            c.conversions,
-          conversion_value:       c.conversionValue,
-          fetched_at:             new Date().toISOString(),
-        }));
-
-        const { error: insertErr } = await supabase
-          .from("google_ads_spend")
-          .insert(rows);
-
-        if (insertErr) throw new Error(`Insert failed: ${insertErr.message}`);
-
-        totalInserted += rows.length;
-        results.push({
-          stripe_id: plan.stripe_id,
-          google_ads_customer_id: customerId,
-          ok: true,
-          inserted: rows.length,
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[ingest-google-ads] Failed for ${plan.stripe_id} (${customerId}): ${msg}`);
-        results.push({
-          stripe_id: plan.stripe_id,
-          google_ads_customer_id: customerId,
-          ok: false,
-          error: msg,
-        });
       }
     }
 
