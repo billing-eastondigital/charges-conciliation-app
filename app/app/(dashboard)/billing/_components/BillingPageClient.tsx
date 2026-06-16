@@ -239,13 +239,26 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
     setRows((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r;
+        const isAdsF = ADS_EDITABLE.has(field);
+        const n = parseFloat(raw.replace(/[,$\s]/g, ""));
+        const num = isNaN(n) ? 0 : n;
+        if (isAdsF) {
+          // ADS fields live in billing_detail — patch there for instant UI update
+          const d = { ...(r.billing_detail ?? {}), [field]: num };
+          const base_fee    = d.base_fee    ?? 0;
+          const ads_base    = d.ads_base    ?? 0;
+          const bing_rev    = d.bing_revenue ?? 0;
+          const dfw_val     = d.dfw         ?? 0;
+          const billing_pct = d.billing_pct ?? 0;
+          const new_total   = Math.round((base_fee + (ads_base + bing_rev) * billing_pct + dfw_val) * 10000) / 10000;
+          return { ...r, billing_detail: d, expected_amount: new_total };
+        }
         const numericFields = new Set([
           "billing_pct","google_shopping_charge","google_search_charge",
           "bing_charge","base_fee","other_charge","expected_amount",
         ]);
         let parsed: string | number | null = raw.trim() || null;
         if (parsed !== null && numericFields.has(field)) {
-          const n = parseFloat(raw.replace(/[,$\s]/g, ""));
           if (!isNaN(n)) parsed = n;
         }
         return { ...r, [field]: parsed };
