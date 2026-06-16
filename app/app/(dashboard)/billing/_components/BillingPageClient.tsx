@@ -558,6 +558,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                 {row.billing_detail!.line_items!.map((item, i) => (
                   <div key={i} className="flex items-baseline justify-between gap-4 text-xs">
                     <span className="text-[#4B4F58] flex-1">{item.text}</span>
+                    <span className="text-[#9ca3af] shrink-0">=</span>
                     <span className="font-mono text-[#3a3a3a] font-medium shrink-0">
                       {formatMoney(String(item.amount))}
                     </span>
