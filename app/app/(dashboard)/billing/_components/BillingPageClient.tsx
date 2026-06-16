@@ -327,7 +327,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
     memo: 160, ready: 54, invoice: 110, ads: 42,
   };
 
-  const TOTAL_COLS = 14; // for colspan
+  const TOTAL_COLS = 15; // for colspan
 
   const renderRow = (row: ExpectedChargeRow) => {
     const saving   = savingIds.has(row.id);
@@ -418,6 +418,18 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
             {isSub
               ? <span className="text-[#c8c8c8] block text-right">—</span>
               : <MoneyDisplay val={dv.searchRev ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
+          </td>
+
+          {/* Search % — same rate as Shopping */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
+            {isSub
+              ? <span className="text-[#c8c8c8]">—</span>
+              : dv.pct != null
+                ? <span className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}>
+                    {dv.pct}%
+                  </span>
+                : <span className="text-[#c8c8c8]">—</span>}
           </td>
 
           {/* Bing Rev */}
@@ -621,6 +633,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
               <col style={{ width: W.shopRev,   minWidth: W.shopRev }} />
               <col style={{ width: W.pct,       minWidth: W.pct }} />
               <col style={{ width: W.searchRev, minWidth: W.searchRev }} />
+              <col style={{ width: W.pct,       minWidth: W.pct }} />
               <col style={{ width: W.bingRev,   minWidth: W.bingRev }} />
               <col style={{ width: W.pct,       minWidth: W.pct }} />
               <col style={{ width: W.dfw,       minWidth: W.dfw }} />
@@ -642,6 +655,7 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                   { label: "Shop. Rev",   align: "right" },
                   { label: "%",           align: "right" },
                   { label: "Search Rev",  align: "right" },
+                  { label: "%",           align: "right" },
                   { label: "Bing Rev",    align: "right" },
                   { label: "Bing %",      align: "right" },
                   { label: "DFW",         align: "right" },
