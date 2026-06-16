@@ -52,6 +52,8 @@ These are the forensic invariants. Breaking them silently corrupts the audit tra
    - **Lost/Churned client** — `clients.account_status = 'LOST'` **AND** `clients.deactivated_month = YYYY-MM` of the period. Manual signal only — never auto-detected from payment history.
    - **Never auto-resolve churn** — a LOST client who made a payment in their final month still appears in both the Churned list AND reconciles as MATCH (see simplyinspiredgoods.com, April 2026). The lifecycle signal and the payment outcome are independent.
    - **Enforcement** — the Period page (ClientLifecycleSection + MoMDelta bridge), the Clients / Won & Churned tab, and any future pages all use these two DB-field conditions. Do not reintroduce reconciliation-diff–based new/churned detection.
+9. **ADS campaign billability = ED naming convention.** Only campaigns whose name matches the regex `ED\s+\|` (case-insensitive) are billable. This catches `"ED | ..."`, `"PMax: ED | ..."`, `"ED  | ..."` (double-space). Campaigns not matching are excluded as `"Non-ED campaign"`. This rule is enforced in BOTH `isEdCampaign()` in `app/(dashboard)/ads/page.tsx` AND in `generate_ads_billing()` SQL (`campaign_name ~* 'ED\s+\|'`). Do not widen this filter without business approval.
+10. **Manual campaign overrides survive re-ingest.** `google_ads_campaign_overrides` rows are read by `generate_ads_billing()` on every run via a NOT EXISTS correlated subquery. Setting an override calls `generate_ads_billing()` immediately via server action — billing reflects the change without waiting for the daily cron.
 
 ---
 
@@ -104,9 +106,22 @@ If no billing sheet has been uploaded, `auto_reconcile.current` = `{ ok: false, 
 Set via Admin → Plan Management → Edit or Set up plan → Billing Method.
 Back-fill rule: clients with `batch = 'SUBSCRIPTION'` were automatically set to `billing_method = 'SUBSCRIPTION'` in migration `20260605000001`.
 
+Set via Admin → Plan Management → Edit or Set up plan → Billing Method. The edit modal shows all 4 methods; `base_fee` field appears conditionally for ADS methods; `billing_percentage` (4dp) is the canonical field.
+
 **Multi-account ADS clients**: additional Google Ads customer IDs stored in `client_platform_ids.other_ids->'google_ads_additional_customer_ids'` (jsonb array). Both `ingest-google-ads` and `generate_ads_billing` process ALL IDs and sum spend across accounts. Example: `cus_MAQFq6FlG4sGc3` has primary `4631988316` + additional `8378921672`.
 
 **ADS revenue metric**: `conversionValueByConversionTime` — NOT `conversionValue`. The API returns both; only `ByConversionTime` matches what Google Ads UI shows. Using click-time attribution causes systematic undercount.
+
+**ADS billing formula** (per client per period):
+```
+expected_amount = base_fee + (shopping_revenue + search_revenue + bing_revenue) × billing_percentage + dfw
+```
+`bing_revenue` and `dfw` are manually entered in the billing page per period and stored in `billing_detail` jsonb. Entering either field immediately recalculates `expected_amount` via `updateAdsBillingDetail` server action.
+
+**Campaign exclusions** (two layers, both in `generate_ads_billing` SQL and `isEdCampaign()` in `ads/page.tsx`):
+1. ED filter: `campaign_name ~* 'ED\s+\|'` — only Easton Digital-managed campaigns are billable
+2. Brand exclusions: hardcoded arrays `shopping_exclusions` / `search_exclusions` for brand campaigns
+3. Manual overrides: `google_ads_campaign_overrides` table — per campaign, per period, survives re-ingest
 
 ---
 
