@@ -38,6 +38,13 @@ export async function setCampaignOverride(
     if (error) return { ok: false, error: error.message };
   }
 
+  // Re-run generate_ads_billing so the exclusion is immediately reflected in expected_charges
+  const { error: rpcError } = await supabase.rpc("generate_ads_billing", {
+    p_period_label: periodLabel,
+  });
+  if (rpcError) return { ok: false, error: `Override saved but billing recalc failed: ${rpcError.message}` };
+
   revalidatePath("/ads");
+  revalidatePath("/billing");
   return { ok: true };
 }
