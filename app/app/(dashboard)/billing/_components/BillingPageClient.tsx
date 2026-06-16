@@ -338,12 +338,12 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
   // Column widths
   const W = {
     exp: 24, account: 190, source: 72, base: 85,
-    shopRev: 105, pct: 52, searchRev: 105,
-    bingRev: 90, dfw: 75, total: 105,
+    rev: 105, pct: 48, fee: 90,   // per-channel triple: raw | % | result
+    dfw: 75, total: 105,
     memo: 160, ready: 54, invoice: 110, ads: 42,
   };
 
-  const TOTAL_COLS = 15; // for colspan
+  const TOTAL_COLS = 18; // for colspan
 
   const renderRow = (row: ExpectedChargeRow) => {
     const saving   = savingIds.has(row.id);
@@ -410,66 +410,66 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
               : <MoneyDisplay val={dv.baseFee ?? null} editable={isImport} id={row.id} field="base_fee" {...editProps} />}
           </td>
 
-          {/* Shopping — fee = shoppingRaw × pct. For IMPORT the stored value is already the fee. */}
+          {/* ── Shopping: Rev | % | Fee ── */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-            {isSub
-              ? <span className="text-[#c8c8c8] block text-right">—</span>
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
               : isAds
-                ? <span className="font-mono tabular-nums block text-right text-[#3a3a3a]">
-                    {dv.shoppingFee ? formatMoney(dv.shoppingFee) : <span className="text-[#c8c8c8]">—</span>}
-                  </span>
-                : <MoneyDisplay val={dv.shoppingFee ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
+                ? <span className="font-mono tabular-nums block text-right">{(dv.shoppingRaw ?? 0) > 0 ? formatMoney(dv.shoppingRaw!) : <span className="text-[#c8c8c8]">—</span>}</span>
+                : <MoneyDisplay val={dv.shoppingRaw ?? null} editable={isImport} id={row.id} field="google_shopping_charge" {...editProps} />}
           </td>
-
-          {/* Shop % */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
             {isSub ? <span className="text-[#c8c8c8]">—</span>
               : dv.pct != null
-                ? <span
-                    className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
-                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
-                  >{dv.pct}%</span>
+                ? <span className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}>{dv.pct}%</span>
                 : <span className="text-[#c8c8c8]">—</span>}
           </td>
-
-          {/* Search — fee = searchRaw × pct */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-            {isSub
-              ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : isAds
-                ? <span className="font-mono tabular-nums block text-right text-[#3a3a3a]">
-                    {dv.searchFee ? formatMoney(dv.searchFee) : <span className="text-[#c8c8c8]">—</span>}
-                  </span>
-                : <MoneyDisplay val={dv.searchFee ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <span className="font-mono tabular-nums block text-right font-medium">
+                  {(dv.shoppingFee ?? 0) > 0 ? formatMoney(dv.shoppingFee!) : <span className="text-[#c8c8c8]">—</span>}
+                </span>}
           </td>
 
-          {/* Search % */}
+          {/* ── Search: Rev | % | Fee ── */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : isAds
+                ? <span className="font-mono tabular-nums block text-right">{(dv.searchRaw ?? 0) > 0 ? formatMoney(dv.searchRaw!) : <span className="text-[#c8c8c8]">—</span>}</span>
+                : <MoneyDisplay val={dv.searchRaw ?? null} editable={isImport} id={row.id} field="google_search_charge" {...editProps} />}
+          </td>
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
             {isSub ? <span className="text-[#c8c8c8]">—</span>
               : dv.pct != null
-                ? <span
-                    className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
-                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}
-                  >{dv.pct}%</span>
+                ? <span className={cn("font-mono tabular-nums", isImport && !isClosed && "cursor-pointer hover:bg-blue-50 rounded-[2px] px-0.5")}
+                    onClick={() => isImport && startEdit(row.id, "billing_pct", row.billing_pct)}>{dv.pct}%</span>
                 : <span className="text-[#c8c8c8]">—</span>}
           </td>
-
-          {/* Bing — editable raw revenue for ADS; fee shown via tooltip/expansion */}
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
-            {isSub
-              ? <span className="text-[#c8c8c8] block text-right">—</span>
-              : isAds
-                ? <MoneyDisplay val={(dv.bingRaw ?? 0) > 0 ? (dv.bingRaw ?? null) : null} editable id={row.id} field="bing_revenue" {...editProps} />
-                : <MoneyDisplay val={dv.bingFee > 0 ? dv.bingFee : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <span className="font-mono tabular-nums block text-right font-medium">
+                  {(dv.searchFee ?? 0) > 0 ? formatMoney(dv.searchFee!) : <span className="text-[#c8c8c8]">—</span>}
+                </span>}
           </td>
 
-          {/* Bing % */}
+          {/* ── Bing: Rev (editable for ADS) | % | Fee ── */}
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : isAds
+                ? <MoneyDisplay val={(dv.bingRaw ?? 0) > 0 ? dv.bingRaw! : null} editable id={row.id} field="bing_revenue" {...editProps} />
+                : <MoneyDisplay val={(dv.bingRaw ?? 0) > 0 ? dv.bingRaw! : null} editable={isImport} id={row.id} field="bing_charge" {...editProps} />}
+          </td>
           <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs text-right">
-            {isAds && (dv.bingRaw ?? 0) > 0
-              ? <span className="font-mono tabular-nums text-[#6b7280]">{dv.pct.toFixed(2)}%</span>
-              : dv.bingPct != null && dv.bingPct > 0
-                ? <span className="font-mono tabular-nums">{dv.bingPct}%</span>
+            {isSub ? <span className="text-[#c8c8c8]">—</span>
+              : (dv.bingRaw ?? 0) > 0 && dv.pct != null
+                ? <span className="font-mono tabular-nums text-[#6b7280]">{dv.pct.toFixed(2)}%</span>
                 : <span className="text-[#c8c8c8]">—</span>}
+          </td>
+          <td className="px-2 py-1.5 border-x border-[#eeeeee] text-xs">
+            {isSub ? <span className="text-[#c8c8c8] block text-right">—</span>
+              : <span className="font-mono tabular-nums block text-right font-medium">
+                  {(dv.bingFee ?? 0) > 0 ? formatMoney(dv.bingFee) : <span className="text-[#c8c8c8]">—</span>}
+                </span>}
           </td>
 
           {/* DFW */}
@@ -651,14 +651,20 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
               <col style={{ width: W.exp,       minWidth: W.exp }} />
               <col style={{ width: W.account,   minWidth: W.account }} />
               <col style={{ width: W.source,    minWidth: W.source }} />
-              <col style={{ width: W.base,      minWidth: W.base }} />
-              <col style={{ width: W.shopRev,   minWidth: W.shopRev }} />
-              <col style={{ width: W.pct,       minWidth: W.pct }} />
-              <col style={{ width: W.searchRev, minWidth: W.searchRev }} />
-              <col style={{ width: W.pct,       minWidth: W.pct }} />
-              <col style={{ width: W.bingRev,   minWidth: W.bingRev }} />
-              <col style={{ width: W.pct,       minWidth: W.pct }} />
-              <col style={{ width: W.dfw,       minWidth: W.dfw }} />
+              <col style={{ width: W.base, minWidth: W.base }} />
+              {/* Shopping: rev | % | fee */}
+              <col style={{ width: W.rev, minWidth: W.rev }} />
+              <col style={{ width: W.pct, minWidth: W.pct }} />
+              <col style={{ width: W.fee, minWidth: W.fee }} />
+              {/* Search: rev | % | fee */}
+              <col style={{ width: W.rev, minWidth: W.rev }} />
+              <col style={{ width: W.pct, minWidth: W.pct }} />
+              <col style={{ width: W.fee, minWidth: W.fee }} />
+              {/* Bing: rev | % | fee */}
+              <col style={{ width: W.rev, minWidth: W.rev }} />
+              <col style={{ width: W.pct, minWidth: W.pct }} />
+              <col style={{ width: W.fee, minWidth: W.fee }} />
+              <col style={{ width: W.dfw, minWidth: W.dfw }} />
               <col style={{ width: W.total,     minWidth: W.total }} />
               <col style={{ width: W.memo,      minWidth: W.memo }} />
               <col style={{ width: W.ready,     minWidth: W.ready }} />
@@ -673,14 +679,17 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                 {[
                   { label: "Account",     align: "left",   sticky: true },
                   { label: "Source",      align: "center" },
-                  { label: "Base Fee",    align: "right" },
-                  { label: "Shop. Rev",   align: "right" },
-                  { label: "%",           align: "right" },
-                  { label: "Search Rev",  align: "right" },
-                  { label: "%",           align: "right" },
-                  { label: "Bing Rev",    align: "right" },
-                  { label: "Bing %",      align: "right" },
-                  { label: "DFW",         align: "right" },
+                  { label: "Base Fee",   align: "right" },
+                  { label: "Shop. Rev",  align: "right" },
+                  { label: "%",          align: "right" },
+                  { label: "Shop. Fee",  align: "right" },
+                  { label: "Search Rev", align: "right" },
+                  { label: "%",          align: "right" },
+                  { label: "Search Fee", align: "right" },
+                  { label: "Bing Rev",   align: "right" },
+                  { label: "Bing %",     align: "right" },
+                  { label: "Bing Fee",   align: "right" },
+                  { label: "DFW",        align: "right" },
                   { label: "Total",       align: "right",  important: true },
                   { label: "Memo",        align: "left" },
                   { label: "✓ Ready",     align: "center" },
