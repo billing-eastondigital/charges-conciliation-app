@@ -9,17 +9,18 @@ import type { BillingMethod, ClientBillingPlan, ClientRecord, ProjectionType } f
 const TODAY = new Date().toISOString().split("T")[0];
 
 const DEFAULT_PLAN: ClientBillingPlan = {
-  billing_plan:      "",
-  billing_details:   null,
-  billing_method:    "AD_SPEND",
-  billing_pct:       0,
-  billing_day:       1,
-  notes:             null,
-  projection_type:   "FIXED",
-  projection_amount: null,
-  manual_overrides:  {},
-  effective_from:    TODAY,
-  effective_to:      null,
+  billing_plan:       "",
+  billing_details:    null,
+  billing_method:     "AD_SPEND",
+  billing_pct:        0,
+  billing_percentage: 0,
+  billing_day:        1,
+  notes:              null,
+  projection_type:    "FIXED",
+  projection_amount:  null,
+  manual_overrides:   {},
+  effective_from:     TODAY,
+  effective_to:       null,
 };
 
 interface Props {
@@ -82,6 +83,8 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
               <SelectContent>
                 <SelectItem value="AD_SPEND">Ad Spend — imported from billing sheet</SelectItem>
                 <SelectItem value="SUBSCRIPTION">Subscription — auto-generated each period</SelectItem>
+                <SelectItem value="ADS_REVENUE">Ads Revenue — base fee + % of Google revenue</SelectItem>
+                <SelectItem value="ADS_COST">Ads Cost — base fee + % of Google spend</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -124,7 +127,7 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
               </Select>
             </Field>
 
-            <Field label="Base amount ($)">
+            <Field label="Base amount / flat fee ($)">
               <input
                 type="number"
                 min="0"
@@ -137,14 +140,40 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
               />
             </Field>
 
-            <Field label="Revenue %">
+            {["ADS_REVENUE", "ADS_COST"].includes(form.billing_method) && (
+              <Field label="Base fee ($) — added on top of % component">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className={inputClass}
+                  value={(form as { base_fee?: number }).base_fee ?? ""}
+                  onChange={(e) =>
+                    update({ ...(e.target.value ? { base_fee: parseFloat(e.target.value) } : { base_fee: 0 }) } as Partial<ClientBillingPlan>)
+                  }
+                />
+              </Field>
+            )}
+
+            <Field label={`Revenue % ${["ADS_REVENUE","ADS_COST"].includes(form.billing_method) ? "(e.g. 2 for 2%)" : ""}`}>
               <input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.01"
                 className={inputClass}
-                value={form.billing_pct}
-                onChange={(e) => update({ billing_pct: parseFloat(e.target.value) || 0 })}
+                value={
+                  ["ADS_REVENUE", "ADS_COST"].includes(form.billing_method)
+                    ? ((form.billing_percentage ?? 0) * 100).toFixed(2)
+                    : form.billing_pct
+                }
+                onChange={(e) => {
+                  const raw = parseFloat(e.target.value) || 0;
+                  if (["ADS_REVENUE", "ADS_COST"].includes(form.billing_method)) {
+                    update({ billing_percentage: raw / 100, billing_pct: raw });
+                  } else {
+                    update({ billing_pct: raw });
+                  }
+                }}
               />
             </Field>
 
@@ -177,7 +206,7 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
           </Button>
           <Button
             onClick={() => onSave(form)}
-            disabled={!form.billing_plan.trim() || saving}
+            disabled={saving}
             className="bg-[#0170B9] hover:bg-[#015fa0] text-white rounded-sm"
           >
             {saving ? "Saving…" : isNew ? "Add plan" : "Save changes"}

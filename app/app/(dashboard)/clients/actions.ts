@@ -85,15 +85,17 @@ export async function deleteClient(id: string, stripeId: string | null) {
 // ── Billing plan actions ──────────────────────────────────────────
 
 const PLAN_FIELDS = (plan: ClientBillingPlan) => ({
-  billing_plan:      plan.billing_plan,
-  billing_details:   plan.billing_details,
-  billing_method:    plan.billing_method,
-  billing_pct:       plan.billing_pct,
-  billing_day:       plan.billing_day,
-  notes:             plan.notes,
-  projection_type:   plan.projection_type,
-  projection_amount: plan.projection_amount,
-  manual_overrides:  plan.manual_overrides ?? {},
+  billing_plan:       plan.billing_plan,
+  billing_details:    plan.billing_details,
+  billing_method:     plan.billing_method,
+  billing_pct:        plan.billing_pct,
+  billing_percentage: plan.billing_percentage ?? 0,
+  base_fee:           (plan as unknown as { base_fee?: number }).base_fee ?? 0,
+  billing_day:        plan.billing_day,
+  notes:              plan.notes,
+  projection_type:    plan.projection_type,
+  projection_amount:  plan.projection_amount,
+  manual_overrides:   plan.manual_overrides ?? {},
 });
 
 async function getClientId(stripeId: string): Promise<string> {
