@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 const COOKIE = "app-session";
 const LOGIN_PATH = "/login";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Always allow login page and its POST action
