@@ -242,6 +242,30 @@ Deno.serve(async (req) => {
     if (!period)          return json({ error: `Period "${period_label}" not found` }, 404);
     if (period.is_closed) return json({ error: `Period "${period_label}" is closed` }, 409);
 
+    // ── Drop stale IMPORT rows for churned clients ───────────────────────────
+    // Clients marked LOST with deactivated_month strictly before this period
+    // should not appear in billing. A client churning IN the period keeps their
+    // final-month row (the simplyinspiredgoods.com case — intentional MATCH).
+    {
+      const periodMonth = period.start_date.slice(0, 7); // "YYYY-MM"
+      const { data: lostClients } = await supabase
+        .from("clients")
+        .select("stripe_id, deactivated_month")
+        .eq("account_status", "LOST")
+        .not("deactivated_month", "is", null)
+        .lt("deactivated_month", periodMonth);
+
+      const lostIds = (lostClients ?? []).map((c) => c.stripe_id as string).filter(Boolean);
+      if (lostIds.length > 0) {
+        await supabase
+          .from("expected_charges")
+          .delete()
+          .eq("period_label", period_label)
+          .eq("source", "IMPORT")
+          .in("stripe_id", lostIds);
+      }
+    }
+
     // ── Auto-generate expected_charges for SUBSCRIPTION clients ──────────────
     // Idempotent: deletes existing SUBSCRIPTION rows + any IMPORT rows for
     // SUBSCRIPTION clients, then re-inserts from projection_amount.
