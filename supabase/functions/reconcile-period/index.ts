@@ -326,6 +326,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Auto-generate SUBSCRIPTION add-on rows for ADS clients ──────────────
+    // ADS clients with addon_subscription_amount > 0 get a second SUBSCRIPTION
+    // row (e.g. Amazon Services $475) generated alongside their ADS row.
+    // Both rows share the same stripe_id — the reconciler sums them.
+    {
+      const periodMonth = period.start_date.slice(0, 7);
+      const { data: adsAddonClients } = await supabase
+        .from("client_active_plans")
+        .select("stripe_id, display_name, primary_email, batch, addon_subscription_amount, addon_subscription_label, deactivated_month")
+        .in("billing_method", ["ADS_REVENUE", "ADS_COST"])
+        .eq("is_active", true)
+        .not("addon_subscription_amount", "is", null)
+        .gt("addon_subscription_amount", 0)
+        .not("stripe_id", "is", null);
+
+      const addonClients = (adsAddonClients ?? []).filter(
+        (c) => !c.deactivated_month || c.deactivated_month >= periodMonth,
+      );
+
+      if (addonClients.length > 0) {
+        // Delete existing addon SUBSCRIPTION rows for these clients (idempotent)
+        await supabase
+          .from("expected_charges")
+          .delete()
+          .eq("period_label", period_label)
+          .eq("source", "SUBSCRIPTION")
+          .in("stripe_id", addonClients.map((c) => c.stripe_id as string));
+
+        const toInsert = addonClients.map((c) => ({
+          period_label,
+          stripe_id:       c.stripe_id,
+          account_name:    `${c.display_name} — ${c.addon_subscription_label ?? "Subscription"}`,
+          primary_email:   c.primary_email,
+          batch:           c.batch,
+          source:          "SUBSCRIPTION",
+          expected_amount: Number(c.addon_subscription_amount).toFixed(4),
+        }));
+
+        const { error: addonErr } = await supabase.from("expected_charges").insert(toInsert);
+        if (addonErr) console.warn(`[reconcile-period] addon subscription insert error: ${addonErr.message}`);
+      }
+    }
+
     // ── Auto-generate expected_charges for ADS_REVENUE / ADS_COST clients ──────
     // Calls generate_ads_billing() which reads google_ads_spend for this period,
     // applies campaign filters (ED | prefix, brand exclusions, channel buckets),

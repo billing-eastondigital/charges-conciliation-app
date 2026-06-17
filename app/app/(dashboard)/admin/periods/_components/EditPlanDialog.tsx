@@ -191,6 +191,37 @@ export function EditPlanDialog({ client, isNew, saving, onSave, onClose }: Props
             </Field>
           </div>
 
+          {["ADS_REVENUE", "ADS_COST"].includes(form.billing_method) && (
+            <div className="border border-[#dddddd] rounded-sm p-3 space-y-3 bg-[#fafafa]">
+              <p className="text-xs font-medium text-[#6b7280] uppercase tracking-wide">Subscription Add-on (billed separately)</p>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Amount ($)">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="e.g. 475"
+                    className={inputClass}
+                    value={(form as { addon_subscription_amount?: number | null }).addon_subscription_amount ?? ""}
+                    onChange={(e) =>
+                      update({ addon_subscription_amount: e.target.value ? parseFloat(e.target.value) : null } as Partial<ClientBillingPlan>)
+                    }
+                  />
+                </Field>
+                <Field label="Label">
+                  <input
+                    className={inputClass}
+                    placeholder="e.g. Amazon Services"
+                    value={(form as { addon_subscription_label?: string | null }).addon_subscription_label ?? ""}
+                    onChange={(e) =>
+                      update({ addon_subscription_label: e.target.value || null } as Partial<ClientBillingPlan>)
+                    }
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
+
           <Field label="Notes">
             <textarea
               className={`${inputClass} h-16 resize-none`}

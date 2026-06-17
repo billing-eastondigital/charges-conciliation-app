@@ -31,6 +31,7 @@ export default async function ClientsPage() {
         billing_plan: string; billing_details: string | null; billing_method: string | null;
         billing_pct: number; billing_percentage: number | null; billing_day: number | null;
         notes: string | null; projection_type: string; projection_amount: number | null;
+        addon_subscription_amount: number | null; addon_subscription_label: string | null;
         manual_overrides: Record<string, number>; effective_from: string; effective_to: string | null;
       }) => ({
         billing_plan:       p.billing_plan,
@@ -42,6 +43,8 @@ export default async function ClientsPage() {
         notes:              p.notes ?? null,
         projection_type:    p.projection_type as ClientRecord["billing_plans"][number]["projection_type"],
         projection_amount:  p.projection_amount != null ? parseFloat(String(p.projection_amount)) : null,
+        addon_subscription_amount: p.addon_subscription_amount != null ? parseFloat(String(p.addon_subscription_amount)) : null,
+        addon_subscription_label:  p.addon_subscription_label ?? null,
         manual_overrides:   p.manual_overrides ?? {},
         effective_from:     p.effective_from,
         effective_to:       p.effective_to ?? null,

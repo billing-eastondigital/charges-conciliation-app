@@ -64,6 +64,9 @@ export interface ClientBillingPlan {
   notes: string | null;
   projection_type: ProjectionType;
   projection_amount: number | null;
+  /** Optional flat subscription billed separately alongside an ADS plan (e.g. Amazon Services $475) */
+  addon_subscription_amount?: number | null;
+  addon_subscription_label?: string | null;
   /** "YYYY-MM" -> amount overrides (MANUAL type) */
   manual_overrides: Record<string, number>;
   /** ISO date "YYYY-MM-DD" — when this plan takes effect */
