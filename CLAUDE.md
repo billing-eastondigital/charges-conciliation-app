@@ -54,6 +54,8 @@ These are the forensic invariants. Breaking them silently corrupts the audit tra
    - **Enforcement** — the Period page (ClientLifecycleSection + MoMDelta bridge), the Clients / Won & Churned tab, and any future pages all use these two DB-field conditions. Do not reintroduce reconciliation-diff–based new/churned detection.
 9. **ADS campaign billability = ED naming convention.** Only campaigns whose name matches the regex `ED\s+\|` (case-insensitive) are billable. This catches `"ED | ..."`, `"PMax: ED | ..."`, `"ED  | ..."` (double-space). Campaigns not matching are excluded as `"Non-ED campaign"`. This rule is enforced in BOTH `isEdCampaign()` in `app/(dashboard)/ads/page.tsx` AND in `generate_ads_billing()` SQL (`campaign_name ~* 'ED\s+\|'`). Do not widen this filter without business approval.
 10. **Manual campaign overrides survive re-ingest.** `google_ads_campaign_overrides` rows are read by `generate_ads_billing()` on every run via a NOT EXISTS correlated subquery. Setting an override calls `generate_ads_billing()` immediately via server action — billing reflects the change without waiting for the daily cron.
+11. **Bing/DFW manual fields survive reconciliation.** `generate_ads_billing()` snapshots `bing_revenue`, `bing_percent`, `dfw`, `ready_for_billing`, `invoice_url`, `invoice_status` from `expected_charges` before its DELETE, and restores them (with recalculated `expected_amount`) after INSERT. Never reset these fields to 0 in the INSERT — they are always restored from the snapshot.
+12. **Resolved exceptions survive reconciliation.** `reconcile-period` snapshots all exceptions with `resolution_status != 'OPEN'` before clearing the period, then restores their resolution state after reinserting. Marking an exception as resolved is a permanent signal — it must not be reset by a re-run.
 
 ---
 
@@ -74,6 +76,8 @@ pg_cron 08:00 UTC
 - **SUBSCRIPTION**: deletes+reinserts `expected_charges` from `projection_amount` for all `billing_method = 'SUBSCRIPTION'` clients (idempotent)
 - **ADS**: calls `generate_ads_billing()` which deletes+reinserts from `google_ads_spend` for all `billing_method IN ('ADS_REVENUE','ADS_COST')` clients (idempotent)
 - **IMPORT rows cleanup**: auto-deletes any IMPORT rows for SUB/ADS clients before reinserting
+- **Manual field preservation**: `generate_ads_billing()` snapshots `bing_revenue`, `bing_percent`, `dfw`, `ready_for_billing`, `invoice_url`, `invoice_status` before DELETE and restores them after INSERT — these values survive every recon run
+- **Resolved exception preservation**: `reconcile-period` snapshots all non-OPEN exceptions before DELETE and restores their `resolution_status` / `resolution_note` / `resolved_at` after INSERT — resolving an exception survives recon
 - Then runs normal reconciliation
 
 This means subscription and ADS clients flow through automatically — no billing xlsx upload needed each month.
