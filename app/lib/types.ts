@@ -14,7 +14,7 @@ export type ReconciliationStatus =
 
 export type AccountStatus = "ACTIVE" | "LOST" | "INACTIVE";
 
-export type BillingMethod = "AD_SPEND" | "SUBSCRIPTION";
+export type BillingMethod = "AD_SPEND" | "SUBSCRIPTION" | "ADS_REVENUE" | "ADS_COST";
 
 export type ExceptionStatus = "OPEN" | "RESOLVED" | "WONT_FIX";
 

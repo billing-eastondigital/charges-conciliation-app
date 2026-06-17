@@ -17,7 +17,11 @@ const BATCH_ORDER: Array<BatchLabel | "ALL"> = [
 const BILLING_METHOD_BADGES: Record<BillingMethod, { label: string; className: string }> = {
   SUBSCRIPTION: { label: "Subscription", className: "bg-purple-100 text-purple-800 border-purple-200" },
   AD_SPEND:     { label: "Ad Spend",     className: "bg-gray-100 text-gray-600 border-gray-200" },
+  ADS_REVENUE:  { label: "Ads Revenue",  className: "bg-blue-100 text-blue-800 border-blue-200" },
+  ADS_COST:     { label: "Ads Cost",     className: "bg-orange-100 text-orange-800 border-orange-200" },
 };
+
+const BILLING_METHOD_BADGES_FALLBACK = { label: "Unknown", className: "bg-gray-100 text-gray-600 border-gray-200" };
 
 const PROJECTION_BADGES: Record<ProjectionType, { label: string; className: string }> = {
   FIXED:       { label: "Fixed",        className: "bg-green-100 text-green-800 border-green-200" },
@@ -228,7 +232,7 @@ export function PlanManagerTable({ initialClients, addPlan, updatePlan, changePl
                   );
                 }
 
-                const badge = PROJECTION_BADGES[plan.projection_type];
+                const badge = PROJECTION_BADGES[plan.projection_type] ?? { label: plan.projection_type ?? "—", className: "bg-gray-100 text-gray-600 border-gray-200" };
 
                 return (
                   <tr
@@ -270,7 +274,7 @@ export function PlanManagerTable({ initialClients, addPlan, updatePlan, changePl
                     {/* Billing method */}
                     <td className="px-4 py-3">
                       {(() => {
-                        const mb = BILLING_METHOD_BADGES[(plan.billing_method ?? "AD_SPEND") as BillingMethod];
+                        const mb = BILLING_METHOD_BADGES[(plan.billing_method ?? "AD_SPEND") as BillingMethod] ?? BILLING_METHOD_BADGES_FALLBACK;
                         return (
                           <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border rounded-sm ${mb.className}`}>
                             {mb.label}
