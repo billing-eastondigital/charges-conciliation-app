@@ -73,7 +73,9 @@ pg_cron 08:00 UTC
 ```
 
 `reconcile-period` also runs the following before reconciling:
+- **LOST client cleanup**: auto-deletes IMPORT rows for clients with `account_status = 'LOST'` and `deactivated_month < period month`. A client churning IN the period keeps their final-month row (see simplyinspiredgoods.com rule in §3 rule 8).
 - **SUBSCRIPTION**: deletes+reinserts `expected_charges` from `projection_amount` for all `billing_method = 'SUBSCRIPTION'` clients (idempotent)
+- **SUBSCRIPTION add-on for ADS clients**: ADS clients with `addon_subscription_amount > 0` get a second `source=SUBSCRIPTION` row generated alongside their ADS row (e.g. Cheap Dealer Supplies: Google Ads fee + $475 Amazon Services). Both rows share `stripe_id` — reconciler sums them.
 - **ADS**: calls `generate_ads_billing()` which deletes+reinserts from `google_ads_spend` for all `billing_method IN ('ADS_REVENUE','ADS_COST')` clients (idempotent)
 - **IMPORT rows cleanup**: auto-deletes any IMPORT rows for SUB/ADS clients before reinserting
 - **Manual field preservation**: `generate_ads_billing()` snapshots `bing_revenue`, `bing_percent`, `dfw`, `ready_for_billing`, `invoice_url`, `invoice_status` before DELETE and restores them after INSERT — these values survive every recon run
@@ -107,10 +109,9 @@ If no billing sheet has been uploaded, `auto_reconcile.current` = `{ ok: false, 
 | `ADS_REVENUE` | Fee = `base_fee` + `billing_percentage` × Google Shopping+Search revenue (by conversion time) |
 | `ADS_COST` | Fee = `base_fee` + `billing_percentage` × Google Shopping+Search cost |
 
-Set via Admin → Plan Management → Edit or Set up plan → Billing Method.
-Back-fill rule: clients with `batch = 'SUBSCRIPTION'` were automatically set to `billing_method = 'SUBSCRIPTION'` in migration `20260605000001`.
+Set via Admin → Plan Management (`/admin/periods`) or Clients page (`/clients`) → Edit plan. The edit modal shows all 4 methods; `base_fee` field appears conditionally for ADS methods; `billing_percentage` (4dp) is the canonical field.
 
-Set via Admin → Plan Management → Edit or Set up plan → Billing Method. The edit modal shows all 4 methods; `base_fee` field appears conditionally for ADS methods; `billing_percentage` (4dp) is the canonical field.
+**Subscription add-on** (`addon_subscription_amount` + `addon_subscription_label`): ADS clients can carry a flat subscription fee billed separately (e.g. Amazon Services). Configured in the Edit Plan modal under "Subscription Add-on". Generates a second SUBSCRIPTION row each period alongside the ADS row. Example: `cus_OinjM3GcjQrwhs` (Cheap Dealer Supplies) — ADS_REVENUE for Google Ads + $475 Amazon Services add-on.
 
 **Multi-account ADS clients**: additional Google Ads customer IDs stored in `client_platform_ids.other_ids->'google_ads_additional_customer_ids'` (jsonb array). Both `ingest-google-ads` and `generate_ads_billing` process ALL IDs and sum spend across accounts. Example: `cus_MAQFq6FlG4sGc3` has primary `4631988316` + additional `8378921672`.
 
