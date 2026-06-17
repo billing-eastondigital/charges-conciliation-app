@@ -29,22 +29,26 @@ export default async function AdminPeriodsPage() {
         a.effective_from.localeCompare(b.effective_from))
       .map((p: {
         billing_plan: string; billing_details: string | null; billing_method: string | null;
-        billing_pct: number; billing_day: number | null; notes: string | null;
-        projection_type: string; projection_amount: number | null;
+        billing_pct: number; billing_percentage: number | null; billing_day: number | null;
+        notes: string | null; projection_type: string; projection_amount: number | null;
+        addon_subscription_amount: number | null; addon_subscription_label: string | null;
         manual_overrides: Record<string, number>;
         effective_from: string; effective_to: string | null;
       }) => ({
-        billing_plan:      p.billing_plan,
-        billing_details:   p.billing_details ?? null,
-        billing_method:    (p.billing_method ?? "AD_SPEND") as ClientRecord["billing_plans"][number]["billing_method"],
-        billing_pct:       p.billing_pct,
-        billing_day:       p.billing_day ?? null,
-        notes:             p.notes ?? null,
-        projection_type:   p.projection_type as ClientRecord["billing_plans"][number]["projection_type"],
-        projection_amount: p.projection_amount ?? null,
-        manual_overrides:  p.manual_overrides ?? {},
-        effective_from:    p.effective_from,
-        effective_to:      p.effective_to ?? null,
+        billing_plan:              p.billing_plan,
+        billing_details:           p.billing_details ?? null,
+        billing_method:            (p.billing_method ?? "AD_SPEND") as ClientRecord["billing_plans"][number]["billing_method"],
+        billing_pct:               p.billing_pct,
+        billing_percentage:        p.billing_percentage != null ? parseFloat(String(p.billing_percentage)) : 0,
+        billing_day:               p.billing_day ?? null,
+        notes:                     p.notes ?? null,
+        projection_type:           p.projection_type as ClientRecord["billing_plans"][number]["projection_type"],
+        projection_amount:         p.projection_amount ?? null,
+        addon_subscription_amount: p.addon_subscription_amount != null ? parseFloat(String(p.addon_subscription_amount)) : null,
+        addon_subscription_label:  p.addon_subscription_label ?? null,
+        manual_overrides:          p.manual_overrides ?? {},
+        effective_from:            p.effective_from,
+        effective_to:              p.effective_to ?? null,
       })),
   }));
 
