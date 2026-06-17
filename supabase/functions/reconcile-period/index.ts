@@ -390,7 +390,21 @@ Deno.serve(async (req) => {
     if (runErr || !runData) throw runErr ?? new Error("Failed to create run record");
     const runId: number = runData.id;
 
-    // 2. Clear existing data for this period
+    // 2. Snapshot resolved/won't-fix exceptions before clearing so they survive the reinsert
+    const { data: priorExceptions } = await supabase
+      .from("exceptions")
+      .select("stripe_id, resolution_status, resolution_note, resolved_at")
+      .eq("period_label", period_label)
+      .neq("resolution_status", "OPEN");
+
+    const resolvedMap = new Map<string | null, { resolution_status: string; resolution_note: string | null; resolved_at: string | null }>(
+      (priorExceptions ?? []).map((e) => [
+        e.stripe_id as string | null,
+        { resolution_status: e.resolution_status, resolution_note: e.resolution_note, resolved_at: e.resolved_at },
+      ])
+    );
+
+    // Clear existing data for this period
     await supabase.from("exceptions").delete().eq("period_label", period_label);
     await supabase.from("reconciliation_results").delete().eq("period_label", period_label);
 
@@ -451,6 +465,20 @@ Deno.serve(async (req) => {
       for (let i = 0; i < exceptionRows.length; i += 200) {
         const { error } = await supabase.from("exceptions").insert(exceptionRows.slice(i, i + 200));
         if (error) throw error;
+      }
+
+      // Restore resolution status for exceptions that were already resolved before this run
+      for (const [stripeId, prior] of resolvedMap) {
+        if (!stripeId) continue;
+        await supabase
+          .from("exceptions")
+          .update({
+            resolution_status: prior.resolution_status,
+            resolution_note:   prior.resolution_note,
+            resolved_at:       prior.resolved_at,
+          })
+          .eq("period_label", period_label)
+          .eq("stripe_id", stripeId);
       }
     }
 
