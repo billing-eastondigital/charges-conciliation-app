@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -258,6 +258,11 @@ function EditClientDialog({
 function DirectoryTab({ initialClients }: { initialClients: ClientRecord[] }) {
   const router = useRouter();
   const [clients, setClients] = useState<ClientRecord[]>(initialClients);
+
+  // Sync local state when the server re-fetches after router.refresh()
+  useEffect(() => {
+    setClients(initialClients);
+  }, [initialClients]);
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [editingPlan,   setEditingPlan]   = useState<ClientRecord | null>(null);
   const [addingPlan,    setAddingPlan]    = useState<ClientRecord | null>(null);
