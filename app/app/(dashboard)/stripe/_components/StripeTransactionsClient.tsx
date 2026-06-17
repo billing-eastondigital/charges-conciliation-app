@@ -141,10 +141,10 @@ export default function StripeTransactionsClient({
         if (search) {
           const q = search.toLowerCase();
           if (
-            !c.customer_email.toLowerCase().includes(q) &&
+            !(c.customer_email ?? "").toLowerCase().includes(q) &&
             !(c.stripe_id ?? "").toLowerCase().includes(q) &&
-            !c.charge_id.toLowerCase().includes(q) &&
-            !c.display_name.toLowerCase().includes(q)
+            !(c.charge_id ?? "").toLowerCase().includes(q) &&
+            !(c.display_name ?? "").toLowerCase().includes(q)
           )
             return false;
         }
