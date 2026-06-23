@@ -116,10 +116,9 @@ export default async function AdsPage({ searchParams }: Props) {
     for (const id of additional) customerIdToName.set(id, name);
   }
 
-  const customerOptions: CustomerOption[] = uniqueCustomerIds.map((id) => ({
-    id,
-    name: customerIdToName.get(id) ?? id,
-  }));
+  const customerOptions: CustomerOption[] = uniqueCustomerIds
+    .map((id) => ({ id, name: customerIdToName.get(id) ?? id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   // Fetch manual overrides for the selected period
   const { data: overrideRows } = await supabase
