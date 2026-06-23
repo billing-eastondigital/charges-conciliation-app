@@ -91,7 +91,8 @@ export default async function AdsPage({ searchParams }: Props) {
     .from("google_ads_spend")
     .select("google_ads_customer_id")
     .eq("period_label", selectedPeriod)
-    .order("google_ads_customer_id");
+    .order("google_ads_customer_id")
+    .limit(5000);
 
   const uniqueCustomerIds = [...new Set((customerRows ?? []).map((r) => r.google_ads_customer_id))];
 
@@ -145,7 +146,8 @@ export default async function AdsPage({ searchParams }: Props) {
     .eq("period_label", selectedPeriod)
     .order("google_ads_customer_id")
     .order("channel_type")
-    .order("conversion_value", { ascending: false });
+    .order("conversion_value", { ascending: false })
+    .limit(5000);
 
   const { data: spendRows } = await (customer
     ? baseQuery.eq("google_ads_customer_id", customer)
