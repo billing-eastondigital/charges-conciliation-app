@@ -144,7 +144,8 @@ export default async function AdsPage({ searchParams }: Props) {
   const SPEND_SELECT = "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
     "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at";
 
-  let spendRows: Record<string, unknown>[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const spendRows: any[] = [];
   if (customer) {
     const { data } = await supabase
       .from("google_ads_spend")
@@ -153,7 +154,7 @@ export default async function AdsPage({ searchParams }: Props) {
       .eq("google_ads_customer_id", customer)
       .order("channel_type")
       .order("conversion_value", { ascending: false });
-    spendRows = data ?? [];
+    if (data) spendRows.push(...data);
   } else {
     for (let page = 0; ; page++) {
       const { data } = await supabase
