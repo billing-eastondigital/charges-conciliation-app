@@ -86,15 +86,20 @@ export default async function AdsPage({ searchParams }: Props) {
     selectedPeriod = adsPeriods?.period_label ?? periods[0]?.period_label ?? "";
   }
 
-  // All customers with spend in this period (for the filter dropdown)
-  const { data: customerRows } = await supabase
-    .from("google_ads_spend")
-    .select("google_ads_customer_id")
-    .eq("period_label", selectedPeriod)
-    .order("google_ads_customer_id")
-    .limit(5000);
-
-  const uniqueCustomerIds = [...new Set((customerRows ?? []).map((r) => r.google_ads_customer_id))];
+  // All customers with spend in this period — paginate to bypass PostgREST max_rows=1000
+  const allCustomerIdRows: { google_ads_customer_id: string }[] = [];
+  for (let page = 0; ; page++) {
+    const { data } = await supabase
+      .from("google_ads_spend")
+      .select("google_ads_customer_id")
+      .eq("period_label", selectedPeriod)
+      .order("google_ads_customer_id")
+      .range(page * 1000, (page + 1) * 1000 - 1);
+    if (!data || data.length === 0) break;
+    allCustomerIdRows.push(...data);
+    if (data.length < 1000) break;
+  }
+  const uniqueCustomerIds = [...new Set(allCustomerIdRows.map((r) => r.google_ads_customer_id))];
 
   // Resolve customer IDs → display names via client_platform_ids
   // Must also scan other_ids.google_ads_additional_customer_ids for multi-account clients
@@ -135,22 +140,35 @@ export default async function AdsPage({ searchParams }: Props) {
     });
   }
 
-  // Fetch spend rows
-  const baseQuery = supabase
-    .from("google_ads_spend")
-    .select(
-      "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
-      "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at"
-    )
-    .eq("period_label", selectedPeriod)
-    .order("google_ads_customer_id")
-    .order("channel_type")
-    .order("conversion_value", { ascending: false })
-    .limit(5000);
+  // Fetch spend rows — paginate to bypass PostgREST max_rows=1000
+  const SPEND_SELECT = "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
+    "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at";
 
-  const { data: spendRows } = await (customer
-    ? baseQuery.eq("google_ads_customer_id", customer)
-    : baseQuery);
+  let spendRows: Record<string, unknown>[] = [];
+  if (customer) {
+    const { data } = await supabase
+      .from("google_ads_spend")
+      .select(SPEND_SELECT)
+      .eq("period_label", selectedPeriod)
+      .eq("google_ads_customer_id", customer)
+      .order("channel_type")
+      .order("conversion_value", { ascending: false });
+    spendRows = data ?? [];
+  } else {
+    for (let page = 0; ; page++) {
+      const { data } = await supabase
+        .from("google_ads_spend")
+        .select(SPEND_SELECT)
+        .eq("period_label", selectedPeriod)
+        .order("google_ads_customer_id")
+        .order("channel_type")
+        .order("conversion_value", { ascending: false })
+        .range(page * 1000, (page + 1) * 1000 - 1);
+      if (!data || data.length === 0) break;
+      spendRows.push(...data);
+      if (data.length < 1000) break;
+    }
+  }
 
   type RawSpendRow = {
     id: number; period_label: string; google_ads_customer_id: string;
