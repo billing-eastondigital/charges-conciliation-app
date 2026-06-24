@@ -86,16 +86,12 @@ export default async function AdsPage({ searchParams }: Props) {
     selectedPeriod = adsPeriods?.period_label ?? periods[0]?.period_label ?? "";
   }
 
-  // Build customer dropdown from client_platform_ids (≤39 rows, fast) cross-referenced
-  // with clients that actually have spend for the selected period.
-  const [{ data: allPlatformIds }, { data: clients }, { data: spendCustomerIds }] = await Promise.all([
+  // Build customer dropdown from client_platform_ids (39 rows, always complete —
+  // avoids PostgREST max_rows=1000 cap that cut off clients with high customer IDs)
+  const [{ data: allPlatformIds }, { data: clients }] = await Promise.all([
     supabase.from("client_platform_ids").select("google_ads_customer_id, stripe_id, other_ids"),
     supabase.from("clients").select("stripe_id, display_name"),
-    supabase.from("google_ads_spend").select("google_ads_customer_id").eq("period_label", selectedPeriod),
   ]);
-
-  // spendCustomerIds may be capped at 1000 rows but has only 28 distinct values — dedup is fine
-  const idsWithSpend = new Set((spendCustomerIds ?? []).map((r) => r.google_ads_customer_id));
 
   const clientMap = new Map((clients ?? []).map((c) => [c.stripe_id, c.display_name]));
   const customerIdToName = new Map<string, string>();
@@ -107,9 +103,7 @@ export default async function AdsPage({ searchParams }: Props) {
     for (const id of additional) customerIdToName.set(id, name);
   }
 
-  // Only show clients that have spend data for this period
   const customerOptions: CustomerOption[] = [...customerIdToName.keys()]
-    .filter((id) => idsWithSpend.has(id))
     .map((id) => ({ id, name: customerIdToName.get(id)! }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -128,22 +122,21 @@ export default async function AdsPage({ searchParams }: Props) {
     });
   }
 
-  // Fetch spend rows only when a specific customer is selected (avoids loading 1400+ rows)
-  const SPEND_SELECT = "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
-    "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at";
+  // Fetch spend rows
+  const baseQuery = supabase
+    .from("google_ads_spend")
+    .select(
+      "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
+      "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at"
+    )
+    .eq("period_label", selectedPeriod)
+    .order("google_ads_customer_id")
+    .order("channel_type")
+    .order("conversion_value", { ascending: false });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const spendRows: any[] = [];
-  if (customer) {
-    const { data } = await supabase
-      .from("google_ads_spend")
-      .select(SPEND_SELECT)
-      .eq("period_label", selectedPeriod)
-      .eq("google_ads_customer_id", customer)
-      .order("channel_type")
-      .order("conversion_value", { ascending: false });
-    if (data) spendRows.push(...data);
-  }
+  const { data: spendRows } = await (customer
+    ? baseQuery.eq("google_ads_customer_id", customer)
+    : baseQuery);
 
   type RawSpendRow = {
     id: number; period_label: string; google_ads_customer_id: string;
