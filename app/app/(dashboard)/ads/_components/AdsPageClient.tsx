@@ -308,9 +308,9 @@ export function AdsPageClient({ rows, periods, selectedPeriod, selectedCustomer,
       {/* Table */}
       {rows.length === 0 ? (
         <div className="py-20 text-center text-sm text-[#9ca3af]">
-          No Google Ads data for {selectedPeriod}.{" "}
-          {selectedCustomer ? "Try selecting a different client or " : ""}
-          Run the pipeline on the billing day to ingest spend data.
+          {selectedCustomer
+            ? `No Google Ads data for this client in ${selectedPeriod}.`
+            : "Select a client from the dropdown to view campaigns."}
         </div>
       ) : (
         <div className="overflow-x-auto">

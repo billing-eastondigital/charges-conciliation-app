@@ -86,30 +86,16 @@ export default async function AdsPage({ searchParams }: Props) {
     selectedPeriod = adsPeriods?.period_label ?? periods[0]?.period_label ?? "";
   }
 
-  // All customers with spend in this period — paginate to bypass PostgREST max_rows=1000
-  const allCustomerIdRows: { google_ads_customer_id: string }[] = [];
-  for (let page = 0; ; page++) {
-    const { data } = await supabase
-      .from("google_ads_spend")
-      .select("google_ads_customer_id")
-      .eq("period_label", selectedPeriod)
-      .order("google_ads_customer_id")
-      .range(page * 1000, (page + 1) * 1000 - 1);
-    if (!data || data.length === 0) break;
-    allCustomerIdRows.push(...data);
-    if (data.length < 1000) break;
-  }
-  const uniqueCustomerIds = [...new Set(allCustomerIdRows.map((r) => r.google_ads_customer_id))];
+  // Build customer dropdown from client_platform_ids (≤39 rows, fast) cross-referenced
+  // with clients that actually have spend for the selected period.
+  const [{ data: allPlatformIds }, { data: clients }, { data: spendCustomerIds }] = await Promise.all([
+    supabase.from("client_platform_ids").select("google_ads_customer_id, stripe_id, other_ids"),
+    supabase.from("clients").select("stripe_id, display_name"),
+    supabase.from("google_ads_spend").select("google_ads_customer_id").eq("period_label", selectedPeriod),
+  ]);
 
-  // Resolve customer IDs → display names via client_platform_ids
-  // Must also scan other_ids.google_ads_additional_customer_ids for multi-account clients
-  const { data: allPlatformIds } = await supabase
-    .from("client_platform_ids")
-    .select("google_ads_customer_id, stripe_id, other_ids");
-
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("stripe_id, display_name");
+  // spendCustomerIds may be capped at 1000 rows but has only 28 distinct values — dedup is fine
+  const idsWithSpend = new Set((spendCustomerIds ?? []).map((r) => r.google_ads_customer_id));
 
   const clientMap = new Map((clients ?? []).map((c) => [c.stripe_id, c.display_name]));
   const customerIdToName = new Map<string, string>();
@@ -121,8 +107,10 @@ export default async function AdsPage({ searchParams }: Props) {
     for (const id of additional) customerIdToName.set(id, name);
   }
 
-  const customerOptions: CustomerOption[] = uniqueCustomerIds
-    .map((id) => ({ id, name: customerIdToName.get(id) ?? id }))
+  // Only show clients that have spend data for this period
+  const customerOptions: CustomerOption[] = [...customerIdToName.keys()]
+    .filter((id) => idsWithSpend.has(id))
+    .map((id) => ({ id, name: customerIdToName.get(id)! }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Fetch manual overrides for the selected period
@@ -140,7 +128,7 @@ export default async function AdsPage({ searchParams }: Props) {
     });
   }
 
-  // Fetch spend rows — paginate to bypass PostgREST max_rows=1000
+  // Fetch spend rows only when a specific customer is selected (avoids loading 1400+ rows)
   const SPEND_SELECT = "id, period_label, google_ads_customer_id, campaign_id, campaign_name, " +
     "channel_type, campaign_status, impressions, clicks, cost_usd, conversions, conversion_value, fetched_at";
 
@@ -155,20 +143,6 @@ export default async function AdsPage({ searchParams }: Props) {
       .order("channel_type")
       .order("conversion_value", { ascending: false });
     if (data) spendRows.push(...data);
-  } else {
-    for (let page = 0; ; page++) {
-      const { data } = await supabase
-        .from("google_ads_spend")
-        .select(SPEND_SELECT)
-        .eq("period_label", selectedPeriod)
-        .order("google_ads_customer_id")
-        .order("channel_type")
-        .order("conversion_value", { ascending: false })
-        .range(page * 1000, (page + 1) * 1000 - 1);
-      if (!data || data.length === 0) break;
-      spendRows.push(...data);
-      if (data.length < 1000) break;
-    }
   }
 
   type RawSpendRow = {
