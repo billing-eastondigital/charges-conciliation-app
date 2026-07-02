@@ -105,3 +105,38 @@ export async function toggleReadyForBilling(id: number, value: boolean) {
   if (error) throw error;
   revalidatePath("/billing");
 }
+
+export async function createStripeInvoices(
+  periodLabel: string,
+  stripeId?: string,
+): Promise<{ invoices_created: number; invoices_failed: number; errors: string[] }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) throw new Error("Supabase env vars not set");
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/create-stripe-invoices`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${anonKey}`,
+    },
+    body: JSON.stringify({ period_label: periodLabel, ...(stripeId ? { stripe_id: stripeId } : {}) }),
+  });
+
+  const json = await res.json() as {
+    ok: boolean;
+    invoices_created?: number;
+    invoices_failed?: number;
+    results?: { error?: string }[];
+    error?: string;
+  };
+
+  if (!res.ok || json.error) throw new Error(json.error ?? "Edge function error");
+
+  revalidatePath("/billing");
+  return {
+    invoices_created: json.invoices_created ?? 0,
+    invoices_failed: json.invoices_failed ?? 0,
+    errors: (json.results ?? []).filter((r) => r.error).map((r) => r.error!),
+  };
+}

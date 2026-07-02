@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Search, Info, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { updateExpectedCharge, updateAdsBillingDetail, toggleReadyForBilling } from "../actions";
+import { Search, Info, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, ExternalLink, FileText, Loader2 } from "lucide-react";
+import { updateExpectedCharge, updateAdsBillingDetail, toggleReadyForBilling, createStripeInvoices } from "../actions";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -223,6 +223,8 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
   const [groupByBatch, setGroupByBatch] = useState(true);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [creatingInvoices, setCreatingInvoices] = useState(false);
+  const [invoiceResult, setInvoiceResult] = useState<{ created: number; failed: number } | null>(null);
 
   const filtered = rows.filter((r) => {
     if (sourceFilter !== "all" && r.source !== sourceFilter) return false;
@@ -323,6 +325,23 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
         setRows(initialRows);
       }
     });
+  }
+
+  const pendingInvoiceCount = rows.filter((r) => r.ready_for_billing && !r.invoice_url).length;
+
+  async function handleCreateInvoices(stripeId?: string) {
+    setCreatingInvoices(true);
+    setInvoiceResult(null);
+    try {
+      const result = await createStripeInvoices(selectedPeriod, stripeId);
+      setInvoiceResult({ created: result.invoices_created, failed: result.invoices_failed });
+      router.refresh();
+    } catch (err) {
+      setInvoiceResult({ created: 0, failed: -1 });
+      console.error(err);
+    } finally {
+      setCreatingInvoices(false);
+    }
   }
 
   const grandTotal = filtered.reduce((s, r) => s + Number(r.expected_amount ?? 0), 0);
@@ -525,8 +544,15 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
                       <ExternalLink size={11} />
                     </a>
                   </>
-                ) : row.ready_for_billing ? (
-                  <span className="text-[10px] text-amber-600 font-medium">Pending</span>
+                ) : row.ready_for_billing && row.stripe_id ? (
+                  <button
+                    onClick={() => handleCreateInvoices(row.stripe_id!)}
+                    disabled={creatingInvoices}
+                    title="Create Stripe invoice for this client"
+                    className="text-[10px] text-[#0170B9] font-medium hover:underline disabled:opacity-50"
+                  >
+                    {creatingInvoices ? "…" : "Create"}
+                  </button>
                 ) : null}
               </div>
             )}
@@ -624,6 +650,33 @@ export function BillingPageClient({ rows: initialRows, periods, selectedPeriod, 
           >
             By Batch
           </button>
+          {!isClosed && pendingInvoiceCount > 0 && (
+            <button
+              onClick={() => handleCreateInvoices()}
+              disabled={creatingInvoices}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-[2px] border border-[#0170B9] bg-[#0170B9] text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              {creatingInvoices
+                ? <><Loader2 size={12} className="animate-spin" /> Creating…</>
+                : <><FileText size={12} /> Create Invoices ({pendingInvoiceCount})</>}
+            </button>
+          )}
+          {invoiceResult && (
+            <span className={cn(
+              "text-xs px-2 py-1 rounded-[2px] border",
+              invoiceResult.failed === -1
+                ? "bg-red-50 border-red-200 text-red-600"
+                : invoiceResult.failed > 0
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-green-50 border-green-200 text-green-700"
+            )}>
+              {invoiceResult.failed === -1
+                ? "Error — check console"
+                : invoiceResult.failed > 0
+                  ? `${invoiceResult.created} created, ${invoiceResult.failed} failed`
+                  : `${invoiceResult.created} invoice${invoiceResult.created !== 1 ? "s" : ""} created`}
+            </span>
+          )}
         </div>
       </div>
 
