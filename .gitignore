@@ -38,3 +38,4 @@ Thumbs.db
 # Claude skills symlinks (machine-specific, breaks git)
 .claude/skills/
 .agents/
+git-push.bat

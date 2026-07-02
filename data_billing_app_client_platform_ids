@@ -1,0 +1,88 @@
+"stripe_id","google_id","account_status","billing_percentage","billing_day_one","billing_day_two","plan","billing_details","notes","custom_rule","google_bf","batch"
+"cus_EJMKHEPaZ23L9y","842-648-8421","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $349 + 2% of ad revenue (OLD) + $40 variable DFW (2 stores)","Mouldings & White River same invoice. Add $40 for DFW 2 stores. Watch text ads to filter our brand.",NULL,"349","2"
+"cus_GjG9nvTKNHvKm3","693-652-9672","ACTIVE","2","1","5","Variable","This is an odd one - we charge 2% of the Year-to-Year Revenue Growth for Google Shopping & Text
+Most months there is no growth but other months like last month there was significant growth from last year.  
+Google Ads Management - $399 + 2% of Year-to-Year Revenue Growth","DO IT MANUALLY, SPECIAL CASE. SOP https://docs.google.com/document/d/1HrA58fizQZFIb8uAyZ9RVHESetOxiOxq/edit?usp=drive_link&ouid=114183618036070672247&rtpof=true&sd=true",NULL,"399","2"
+"cus_Gks5Luf2oz80Vv","340-667-9925","ACTIVE","10","1","5","Variable","fix fee $1000 + 10% of Ad Spend from previous month 
+for Google and Bing ","- Manually
+- Invoice in Harvest","use_cost",NULL,"1"
+"cus_Gks5Luf2oz80Vv","115-781-6524","ACTIVE","10","1","5","Variable","fix fee $1000 + 10% of Ad Spend from previous month 
+for Google and Bing ","-Manually
+-WIM - All Time Trading invoice in Harvest
+- charge them $1,000 every Monday
+- Invoice in Harvest","use_cost",NULL,"1"
+"cus_Gks5Luf2oz80Vv","340-667-9925","ACTIVE","0","1","5","FIX","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC","use_cost","475","SUBSCRIPTION"
+"cus_GNUYupp8Hh4cSP","649-947-9595","ACTIVE","12","1","5","Variable","Charge 12% of ad spend from previous month for AdWords and Bing
+varies month to month based on clients adspend","-Manually
+-Charge % of Campaign COST not REVENUE","use_cost",NULL,"1"
+"cus_HMwHt2FOxWLy8x","836-943-6790","ACTIVE","0","8","10","Fix","Google Shopping Management Starter Plan - $475","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_HN0odgEcZ6VkPR","338-192-2941","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $349 + 2% of ad revenue (OLD)",NULL,NULL,"349","2"
+"cus_HOlII80xvF057s","863-376-9880","ACTIVE","2","1","5","Variable","old_Google Shopping - $199 + 2% of ad revenue + $20 DFW",NULL,NULL,"199","2"
+"cus_HR1JG8drEbsyIx","603-855-8382","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW","filter out non-ED Pmax campaign & charge $20 DFW",NULL,"299","2"
+"cus_HWgmu82x3l9rCZ","949-658-9180","ACTIVE","0.5","20","20","Variable","Google & Bing - $399 per month plus  for Google Shopping 0.5%  of revenue. Shopping Brand is not ""Brand"" only filter out DFO Brand",NULL,NULL,"399","3"
+"cus_IBgVvLV5wxX9Bd","877-506-6022","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW 
+",NULL,NULL,"299","2"
+"cus_IMNaYfltkdPXuv","443-743-0284","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021) + $20 DFW",NULL,NULL,"399","1"
+"cus_JR5mL46ckKKJiR","300-423-8601","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $320 per month plus 2% of revenue from advertising plus Bing - $100 per month plus 2% of revenue from advertising","add DFW (since they have more than 10,000 products 
+we charge a higher amount which is figured monthly 
+Also we can take 2% from ""JMS Brands"" but not ""Brand Terms"" for Text Ads",NULL,"420","1"
+"cus_JR5mL46ckKKJiR",NULL,"ACTIVE","0","8","10","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_KaCrqBNFkryB4k","196-691-5399","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW 
+","Filter out Brand campaigns for both Google",NULL,"299","2"
+"cus_KJ4A2hr5aA3J1A","443-129-8705","ACTIVE","2","20","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW","Add DFW",NULL,"299","3"
+"cus_KpAN7dkWaFdz3B","524-324-0323","ACTIVE","2","20","20","Variable","Google Shopping - $299 + 2% of ad revenue","$20 DFW",NULL,"299","3"
+"cus_KvIcMgwLa6rxqx",NULL,"ACTIVE","0","7","10","Fix","Google Shopping Setup + Coaching - Monthly Fee $299",NULL,NULL,NULL,"5"
+"cus_L04ut7WgHHqIN4",NULL,"ACTIVE","0","22","25","Fix","Google Shopping / Text Ads Setup + Coaching - Monthly Fee $349",NULL,NULL,NULL,"5"
+"cus_L4vWBzInyrA8RN","871-387-6103","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021)","Filter out Brand Text Ads",NULL,"399","1"
+"cus_L7b1kOJY2PJeOW","417-571-0383","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021)",NULL,NULL,"399","2"
+"cus_L7DrHmiMofn6ws",NULL,"ACTIVE","0","7","10","Fix","Google Shopping Setup + Coaching - Monthly Fee $299",NULL,NULL,NULL,"5"
+"cus_LF3m2e8OrXMsUK","822-002-1798","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue","Smart campaign is not ours to take revenue from - filter out",NULL,"299","2"
+"cus_Lg5HdvMnHkNqn0",NULL,"ACTIVE","0","12","15","Fix","Google Shopping Setup + Coaching - Monthly Fee $299","AUTOMATIC",NULL,NULL,"5"
+"cus_LKim7EZYOVj9jF","699-862-2686","ACTIVE","2","20","20","Variable","Google Shopping & Bing Shopping - $399 + 2% of ad revenue",NULL,NULL,"399","3"
+"cus_LpoMNpDjbzi6fz","321-590-3425","ACTIVE","2","20","20","Variable","old_Google Shopping - $199 + 2% of ad revenue","Text ads are Brand only - no charge for revenue percentage or monthly mgmt fee
+",NULL,"199","3"
+"cus_LS8xakJItjgXhd",NULL,"ACTIVE","0","6","10","Fix","Google Shopping Setup + Coaching - Monthly Fee $299",NULL,NULL,NULL,"5"
+"cus_M6Ex2LIAHaqE31","753-500-8938","ACTIVE","2","1","5","Variable","old_Google Shopping - $199 + 2% of ad revenue",NULL,NULL,"199","2"
+"cus_MAQFq6FlG4sGc3",NULL,"ACTIVE","0","1","5","Fix","$399 Google Shopping month flat rate no revenue percentage","on real estate posts invoice",NULL,"399","1"
+"cus_MAQFq6FlG4sGc3","463-198-8316","ACTIVE","2","1","5","Variable","$399 per month + 2% of revenue for Google and Bing","Include addressesofdistinction.com in the invoice",NULL,"399","1"
+"cus_MAQFq6FlG4sGc3","837-892-1672","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021)","Added Shopping (PMAX) and 2% revenue for June 2023. Be sure to filter out Brand.",NULL,"399","2"
+"cus_MBlqclhGkaWbp7",NULL,"ACTIVE","0","1","5","Fix","Skips Garage - Amazon Ad Management - $399 per month flat rate
+","Same Customer id that Taligate Pro",NULL,NULL,"SUBSCRIPTION"
+"cus_MjtOD8HI7vVrzm","362-249-0196","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021)",NULL,NULL,"399","1"
+"cus_Mk1E5riYx9BQSb","976-247-0644","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue","Filter out non-ED and Shopping Brand ads",NULL,"299","2"
+"cus_Mql0N9LiRyQDMW",NULL,"ACTIVE","0","28","0","Fix","Google Shopping Setup + Coaching - Monthly Fee $299",NULL,NULL,NULL,"5"
+"cus_NHEkhkK5qPmO8o","916-153-2155","ACTIVE","0","8","10","Fix","Google Shopping Management Starter Plan - $475","Only Google Base fee",NULL,"475","SUBSCRIPTION"
+"cus_NzutB5xP7tpKlr",NULL,"ACTIVE","0","1","5","Fix","Flat monthly rate for Amazon $475","Not a WIM Group - see Gabriel's email for payment plan",NULL,NULL,NULL
+"cus_O2TbEx89BGcFZS",NULL,"ACTIVE","2","19","20","Fix","$20 DFW","Only DFW",NULL,NULL,"SUBSCRIPTION"
+"cus_ODTpkZCeWeIqPF","434-220-0150","ACTIVE","2","20","20","Variable","Google Shopping - $299 + 2% of ad revenue",NULL,NULL,"299","3"
+"cus_OfljFt9el66sCC",NULL,"ACTIVE","0","19","20","FIX","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)",NULL,NULL,NULL,"SUBSCRIPTION"
+"cus_OinjM3GcjQrwhs",NULL,"ACTIVE","0","19","20","FIX","Amazon Ad Management - $475 per month flat rate","AUTOMATIC",NULL,NULL,"SUBSCRIPTION"
+"cus_OinjM3GcjQrwhs","152-908-0367","ACTIVE","2","20","20","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW","Add $20 DFW and No charge for text ads",NULL,"299","3"
+"cus_OkS3Vu3Orhd2vR","653-768-1080","ACTIVE","2","20","20","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021) + $20 DFW","add DFW",NULL,"399","3"
+"cus_Ol35UjZNKTQSu9","103-331-7808","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW",NULL,NULL,"299","2"
+"cus_OmyL3eKyTwAn7O",NULL,"ACTIVE","0","1","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_OsGRkNz3m6JSSO",NULL,"ACTIVE","0","22","25","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)",NULL,NULL,"475","SUBSCRIPTION"
+"cus_Ouw9vXPsi6rIp5","208-524-9008","ACTIVE","2","20","20","Variable","old_Google Shopping - $199 + 2% of ad revenue + $20 DFW","Charge DFW. Text ads are branded only - do not take revenue percentage or charge monthly mgmt fee",NULL,"199","3"
+"cus_OuwrMB5A8wG0Tm",NULL,"ACTIVE","0","8","10","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_Oz1JPWE4Uew8XA",NULL,"ACTIVE","0",NULL,NULL,NULL,"Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,NULL,NULL
+"cus_PedLemYgsMB4Ko",NULL,"ACTIVE",NULL,"19",NULL,"Fix","Google Shopping Management Growth Plan - $650/month plus 2% of revenue","AUTOMATIC",NULL,"650","SUBSCRIPTION"
+"cus_Pg2WQGOuZH2q8T",NULL,"ACTIVE","0","19","20","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,NULL,"SUBSCRIPTION"
+"cus_PInUMrDJgQWDKt","404-344-5221","ACTIVE","2","20","20","Variable","Google Shopping - $299 + 2% of ad revenue",NULL,NULL,"299","3"
+"cus_PIpVQvQrcL0N9x","103-105-7748","ACTIVE","2","20","20","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021)","filter out ""ED | Search | Brand"" for text ads but can take revenue from the rest with Brand in the campaign name",NULL,"399","3"
+"cus_PldCRQBIaCoGiO","719-331-3341","ACTIVE","2","20","20","Variable","Google Shopping Management Growth Plan - $650/month plus 2% of revenue",NULL,NULL,"650","3"
+"cus_PO1KaeaHsr0gzb","765-518-5119","ACTIVE","2","1","5","Variable","PokerChips - Google Shopping & Text Ads - $399 per month + 2% of ad revenue","Poker Chips - filter out ""Custom Poker Chips"" for text ads - Charge $300 for Klaviyo Email Setup (started in March and Gabriel says charge monthly for at least 4 months)",NULL,"399","1"
+"cus_PwTdKcMGMbuEIv","954-760-2364","ACTIVE","2","20","20","Variable","Google Shopping Management Growth Plan - $650/month plus 2% of revenue",NULL,NULL,"650","3"
+"cus_PyNx1GjDB2FRJh",NULL,"ACTIVE","0","7","10","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_Q14kHfVtV7mClW",NULL,"ACTIVE","0","1","5","Fix","Custom. Billed by Gabriel",NULL,NULL,NULL,"1"
+"cus_Q1nzEwQxTHo44M","526-865-7281","ACTIVE","2","1","5","Variable","Google Shopping - $299 + 2% of ad revenue + $20 DFW","add $20 DFW",NULL,"299","2"
+"cus_Q6dKFOJXsnoiPd",NULL,"ACTIVE","12.5","1","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_Q6Hm4ikzgMKpLU",NULL,"ACTIVE","0","13","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_QhMNKJ23jRrM3E",NULL,"ACTIVE","0","1","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_QUbjD69JAUgYEI","562-623-1101","ACTIVE","2","1","5","Variable","old_Google Shopping, Bing Shopping, Text Ads, & Remarketing - $399 + 2% of ad revenue","Add DFW - figure every month due to higher product count",NULL,"399","2"
+"cus_QUuH0sGgajr5Mf","465-598-5844","ACTIVE","2","1","12","Variable","Google Shopping Management Growth Plan - $650/month plus 2% of revenue",NULL,NULL,"650","SUBSCRIPTION"
+"cus_Rgkuafb4zbdprf",NULL,"ACTIVE","0","31","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","SUBSCRIPTION"
+"cus_RnWyNOxHOXVL3t","923-161-0221","ACTIVE","2","1","5","Variable","Google Shopping + Text Ads - $399 + 2% of ad revenue (NEW 2021) + DFW",NULL,NULL,"399","1"
+"cus_RO2yhKAyKj9spR",NULL,"ACTIVE","0","13","5","Fix","Google Shopping Management Starter Plan ",NULL,NULL,"0","SUBSCRIPTION"
+"cus_SFWU1lLTiWM73N",NULL,"ACTIVE","0","4","5","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","4"
+"cus_Sgavq2Eogudl9V",NULL,"ACTIVE","0","15","15","Fix","Google Shopping Management Starter Plan - $475 (Amount: 475.00 USD)","AUTOMATIC",NULL,"475","4"
+"paypal","645-666-0929","ACTIVE","0","1","5","Fix","Client pays $99/month no revenue percentage through Paypal auto payments - only Gabriel has access to check","Automatic on Paypal. ",NULL,"99","SUBSCRIPTION"
