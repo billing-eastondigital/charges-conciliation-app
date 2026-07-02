@@ -21,7 +21,7 @@ export default async function PeriodPage({ params }: Props) {
   const [{ data: periodsRows }, { data: resultRows }, { data: lifecycleRows }, { data: exceptionRows }] = await Promise.all([
     supabase.from("periods").select("period_label, start_date, end_date, is_closed").order("start_date"),
     supabase.from("reconciliation_results").select("*, clients(accounts)").eq("period_label", periodLabel),
-    supabase.from("clients").select("id, stripe_id, display_name, primary_email, account_status, batch, google_id, accounts, is_active, deactivated_month, start_date, end_date"),
+    supabase.from("clients").select("id, stripe_id, display_name, primary_email, account_status, batch, google_id, accounts, is_active, deactivated_month, start_date, end_date, client_billing_plans(billing_plan, billing_method, effective_from)"),
     supabase.from("exceptions").select("stripe_id, resolution_status").eq("period_label", periodLabel),
   ]);
 
@@ -122,7 +122,7 @@ export default async function PeriodPage({ params }: Props) {
     deactivated_month: c.deactivated_month ?? null,
     start_date:        c.start_date ?? null,
     end_date:          c.end_date ?? null,
-    billing_plans:     [],
+    billing_plans:     ((c as any).client_billing_plans ?? []).sort((a: any, b: any) => a.effective_from?.localeCompare(b.effective_from ?? "") ?? 0),
   });
 
   const allClients = (lifecycleRows ?? []).map(toRecord);
