@@ -33,6 +33,7 @@ export interface MoMBridgeData {
   // Lost clients
   churned_revenue_lost: number;
   churned_client_count: number;
+  churned_clients: Array<{ name: string; last_amount: number }>;
   // Retained client avg ticket shift
   retained_delta: number;
   retained_count: number;
@@ -63,6 +64,7 @@ export const aprilMoMBridge: MoMBridgeData = {
   // No clients lost between March and April
   churned_revenue_lost: 0,
   churned_client_count: 0,
+  churned_clients: [],
 
   // Retained 41 clients: March $61,510.24 → April $50,282.36
   retained_delta:       -11_227.88,

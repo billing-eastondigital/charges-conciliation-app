@@ -225,6 +225,13 @@ export default async function PeriodPage({ params }: Props) {
         }),
         churned_revenue_lost:  churnedRevenueLost,
         churned_client_count:  churnedClientKeys.length,
+        churned_clients: churnedClientKeys.map((k) => {
+          const meta = churnedClients.find((c) => c.stripe_id === k);
+          return {
+            name:        meta?.display_name ?? k,
+            last_amount: prevMap.get(k) ?? 0,
+          };
+        }),
         retained_delta:        retainedDelta,
         retained_count:        retainedKeys.length,
         avg_ticket_prior:      avgTicketPrior,
