@@ -277,7 +277,7 @@ export default async function PeriodPage({ params }: Props) {
 
           {bridge && <MoMDeltaSection bridge={bridge} />}
 
-          <ClientLifecycleSection newClients={newClients} churnedClients={churnedClients} />
+          <ClientLifecycleSection newClients={newClients} churnedClients={churnedClients} prevCollectedMap={prevCollectedMap} />
 
           <div>
             <h2 className="text-sm font-semibold text-[#3a3a3a] mb-3 uppercase tracking-wide">

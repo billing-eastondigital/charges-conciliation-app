@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { ClientRecord } from "@/lib/types";
+import { formatMoney } from "@/lib/format";
 import { TrendingUp, TrendingDown, X } from "lucide-react";
 
 interface Props {
   newClients: ClientRecord[];
   churnedClients: ClientRecord[];
+  prevCollectedMap?: Map<string, number>;
 }
 
 type ActivePanel = "new" | "churned" | null;
@@ -61,10 +63,12 @@ function ClientTable({
   clients,
   type,
   onClose,
+  prevCollectedMap,
 }: {
   clients: ClientRecord[];
   type: "new" | "churned";
   onClose: () => void;
+  prevCollectedMap?: Map<string, number>;
 }) {
   const isNew = type === "new";
   const headerBg = isNew ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200";
@@ -96,10 +100,17 @@ function ClientTable({
             <th className="px-3 py-2 text-left font-medium text-[#6b7280] whitespace-nowrap">
               {isNew ? "Start Date" : "Deactivated"}
             </th>
+            {!isNew && (
+              <th className="px-3 py-2 text-right font-medium text-[#6b7280] whitespace-nowrap">Last Collected</th>
+            )}
           </tr>
         </thead>
         <tbody>
-          {clients.map((c) => (
+          {clients.map((c) => {
+            const lastCollected = !isNew && prevCollectedMap && c.stripe_id
+              ? (prevCollectedMap.get(c.stripe_id) ?? null)
+              : null;
+            return (
             <tr key={c.stripe_id ?? c.primary_email} className="border-b border-[#eeeeee] hover:bg-[#fafafa]">
               <td className="px-3 py-2 font-medium text-[#3a3a3a]">
                 {c.display_name}
@@ -114,8 +125,14 @@ function ClientTable({
               <td className="px-3 py-2 text-[#6b7280] whitespace-nowrap">
                 {isNew ? (c.start_date ?? "—") : (c.deactivated_month ?? "—")}
               </td>
+              {!isNew && (
+                <td className="px-3 py-2 text-right font-mono text-[#3a3a3a] whitespace-nowrap">
+                  {lastCollected != null ? formatMoney(lastCollected) : <span className="text-[#9ca3af]">—</span>}
+                </td>
+              )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -124,7 +141,7 @@ function ClientTable({
 
 // ── Main export ────────────────────────────────────────────────
 
-export function ClientLifecycleSection({ newClients, churnedClients }: Props) {
+export function ClientLifecycleSection({ newClients, churnedClients, prevCollectedMap }: Props) {
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
 
   function toggle(panel: "new" | "churned") {
@@ -156,7 +173,7 @@ export function ClientLifecycleSection({ newClients, churnedClients }: Props) {
         <ClientTable clients={newClients} type="new" onClose={() => setActivePanel(null)} />
       )}
       {activePanel === "churned" && (
-        <ClientTable clients={churnedClients} type="churned" onClose={() => setActivePanel(null)} />
+        <ClientTable clients={churnedClients} type="churned" onClose={() => setActivePanel(null)} prevCollectedMap={prevCollectedMap} />
       )}
     </div>
   );
