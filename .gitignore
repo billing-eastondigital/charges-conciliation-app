@@ -34,3 +34,7 @@ node_modules/
 # ── OS ───────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# Claude skills symlinks (machine-specific, breaks git)
+.claude/skills/
+.agents/
